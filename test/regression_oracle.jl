@@ -47,7 +47,8 @@ using TestItems
     motif_to_index = Dict(motif => idx for (idx, motif) in enumerate(patterns))
     @test length(motif_to_index) == length(patterns)
 
-    results = compare(patterns, patterns; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    results = compare(patterns, patterns, options)
     oracle_rows = load_oracle_rows(oracle_path)
 
     expected_pairs = Set{Tuple{Int, Int}}()

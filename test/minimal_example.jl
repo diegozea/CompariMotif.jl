@@ -5,7 +5,8 @@ using TestItems
     using CompariMotif
 
     motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]", "RxLE"]
-    results = compare(motifs; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    results = compare(motifs, options)
 
     @test size(results) == (4, 4)
     @test results[3, 4].matched

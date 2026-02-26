@@ -4,8 +4,10 @@ using TestItems
     using Test
     using CompariMotif
 
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+
     # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 1 (page 1308)
-    result = compare("[KR]xLx[FYLIMVP]", "RxLE"; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    result = compare("[KR]xLx[FYLIMVP]", "RxLE", options)
 
     @test result.matched
     @test result.query_relationship == "Degenerate Parent"
@@ -20,6 +22,8 @@ end
 @testitem "paper Table 1 relationship codes" begin
     using Test
     using CompariMotif
+
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
     # Edwards et al. (2008), Table 1 (page 1308)
     cases = [
@@ -42,7 +46,7 @@ end
     ]
 
     for (query, search, code) in cases
-        result = compare(query, search; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+        result = compare(query, search, options)
         @test result.matched
         @test result.query_relationship_code == code
     end

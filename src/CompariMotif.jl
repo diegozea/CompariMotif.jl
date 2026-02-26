@@ -1,6 +1,8 @@
 module CompariMotif
 
-export ComparisonResult, compare, normalize_motif, write_results_tsv
+export ComparisonOptions, ComparisonResult, MatchFixMode, MatchFixBothFixed,
+       MatchFixNone, MatchFixQueryFixed, MatchFixSearchFixed, compare,
+       normalize_motif, write_results_tsv
 
 const _PROTEIN_ALPHABET = collect("ACDEFGHIKLMNPQRSTVWY")
 const _DNA_ALPHABET = collect("ACGT")
@@ -31,6 +33,22 @@ end
     _CTERMINUS = 2
 end
 
+"""
+    MatchFixMode
+
+Fixed-position matching behavior used by CompariMotif:
+- `MatchFixNone`: no fixed-position requirement.
+- `MatchFixQueryFixed`: fixed query positions must have exact fixed matches.
+- `MatchFixSearchFixed`: fixed search positions must have exact fixed matches.
+- `MatchFixBothFixed`: enforce fixed-position matching on both motifs.
+"""
+@enum MatchFixMode::UInt8 begin
+    MatchFixNone = 0
+    MatchFixQueryFixed = 1
+    MatchFixSearchFixed = 2
+    MatchFixBothFixed = 3
+end
+
 struct _Position
     kind::_PositionKind
     mask::UInt32
@@ -55,26 +73,61 @@ struct _MotifVariant
     information::Float64
 end
 
-struct _ComparisonOptions
+"""
+    ComparisonOptions
+
+Reusable configuration object for CompariMotif comparisons.
+
+Construct once with [`ComparisonOptions(; kwargs...)`](@ref) and reuse across
+many `compare` calls.
+
+# Keywords
+- `alphabet::Symbol = :protein`: comparison alphabet (`:protein` or `:dna`).
+- `min_shared_positions::Int = 2`: minimum number of matched, non-wildcard
+  positions required for a hit.
+- `normalized_ic_cutoff::Real = 0.5`: minimum normalized information content.
+- `matchfix::Union{MatchFixMode, Symbol, AbstractString} = MatchFixNone`:
+  fixed-position matching mode. Accepted symbol/string aliases are:
+  `none`, `query_fixed` (`query`), `search_fixed` (`search`), `both_fixed` (`both`).
+- `mismatches::Int = 0`: tolerated count of defined-position mismatches.
+- `allow_ambiguous_overlap::Bool = true`: whether partial class overlaps are
+  allowed as complex matches.
+- `max_variants::Int = 10_000`: maximum expanded variants per motif.
+"""
+struct ComparisonOptions
     alphabet::Vector{Char}
     alphabet_index::Dict{Char, Int}
     alphabet_mask::UInt32
     log_base::Float64
     min_shared_positions::Int
     normalized_ic_cutoff::Float64
-    matchfix::Int
+    matchfix::MatchFixMode
     mismatches::Int
     allow_ambiguous_overlap::Bool
     max_variants::Int
 end
 
+@enum _RelationshipType::UInt8 begin
+    _REL_EXACT = 0
+    _REL_VARIANT = 1
+    _REL_DEGENERATE = 2
+    _REL_COMPLEX = 3
+end
+
+@enum _RelationshipLength::UInt8 begin
+    _LEN_MATCH = 0
+    _LEN_PARENT = 1
+    _LEN_SUBSEQUENCE = 2
+    _LEN_OVERLAP = 3
+end
+
 struct _Candidate
     query_variant::_MotifVariant
     search_variant::_MotifVariant
-    query_relationship::String
-    search_relationship::String
-    query_relationship_code::String
-    search_relationship_code::String
+    query_relationship_type::_RelationshipType
+    query_relationship_length::_RelationshipLength
+    search_relationship_type::_RelationshipType
+    search_relationship_length::_RelationshipLength
     matched_pattern::String
     matched_positions::Int
     exact_fixed_matches::Int
@@ -84,51 +137,48 @@ struct _Candidate
     score::Float64
 end
 
-const _RELATIONSHIP_TYPE_TO_WORD = Dict(
-    :exact => "Exact",
-    :variant => "Variant",
-    :degenerate => "Degenerate",
-    :complex => "Complex"
-)
+const _RELATIONSHIP_TYPE_WORDS = ("Exact", "Variant", "Degenerate", "Complex")
+const _RELATIONSHIP_TYPE_CODES = ("e", "v", "d", "c")
+const _RELATIONSHIP_LENGTH_WORDS = ("Match", "Parent", "Subsequence", "Overlap")
+const _RELATIONSHIP_LENGTH_CODES = ("m", "p", "s", "o")
 
-const _RELATIONSHIP_TYPE_TO_CODE = Dict(
-    :exact => "e",
-    :variant => "v",
-    :degenerate => "d",
-    :complex => "c"
-)
+_coerce_matchfix(mode::MatchFixMode) = mode
+function _coerce_matchfix(mode::Symbol)
+    if mode === :none
+        return MatchFixNone
+    elseif mode === :query_fixed || mode === :query
+        return MatchFixQueryFixed
+    elseif mode === :search_fixed || mode === :search
+        return MatchFixSearchFixed
+    elseif mode === :both_fixed || mode === :both
+        return MatchFixBothFixed
+    end
+    throw(ArgumentError("`matchfix` must be one of :none, :query_fixed, :search_fixed, :both_fixed."))
+end
+function _coerce_matchfix(mode::AbstractString)
+    _coerce_matchfix(Symbol(replace(lowercase(strip(mode)), ' ' => '_')))
+end
 
-const _RELATIONSHIP_LENGTH_TO_WORD = Dict(
-    :match => "Match",
-    :parent => "Parent",
-    :subsequence => "Subsequence",
-    :overlap => "Overlap"
-)
+"""
+    ComparisonOptions(; kwargs...) -> ComparisonOptions
 
-const _RELATIONSHIP_LENGTH_TO_CODE = Dict(
-    :match => "m",
-    :parent => "p",
-    :subsequence => "s",
-    :overlap => "o"
-)
-
-function _build_options(;
+Create validated comparison options for `compare`.
+"""
+function ComparisonOptions(;
         alphabet::Symbol = :protein,
         min_shared_positions::Int = 2,
         normalized_ic_cutoff::Real = 0.5,
-        matchfix::Int = 0,
+        matchfix::Union{MatchFixMode, Symbol, AbstractString} = MatchFixNone,
         mismatches::Int = 0,
         allow_ambiguous_overlap::Bool = true,
         max_variants::Int = 10_000
 )
+    matchfix_mode = _coerce_matchfix(matchfix)
     if min_shared_positions < 1
         throw(ArgumentError("`min_shared_positions` must be >= 1."))
     end
     if normalized_ic_cutoff < 0
         throw(ArgumentError("`normalized_ic_cutoff` must be >= 0."))
-    end
-    if !(0 <= matchfix <= 3)
-        throw(ArgumentError("`matchfix` must be in 0:3."))
     end
     if mismatches < 0
         throw(ArgumentError("`mismatches` must be >= 0."))
@@ -151,14 +201,14 @@ function _build_options(;
     end
     mask = UInt32((1 << length(alphabet_chars)) - 1)
 
-    return _ComparisonOptions(
+    return ComparisonOptions(
         alphabet_chars,
         index,
         mask,
         log(length(alphabet_chars)),
         min_shared_positions,
         float(normalized_ic_cutoff),
-        matchfix,
+        matchfix_mode,
         mismatches,
         allow_ambiguous_overlap,
         max_variants
@@ -166,12 +216,12 @@ function _build_options(;
 end
 
 _is_terminus(pos::_Position) = pos.kind !== _RESIDUE
-function _is_wildcard(pos::_Position, options::_ComparisonOptions)
+function _is_wildcard(pos::_Position, options::ComparisonOptions)
     pos.kind === _RESIDUE && pos.mask == options.alphabet_mask
 end
 _is_fixed(pos::_Position) = pos.kind === _RESIDUE && count_ones(pos.mask) == 1
 
-function _position_ic(pos::_Position, options::_ComparisonOptions)
+function _position_ic(pos::_Position, options::ComparisonOptions)
     if pos.kind !== _RESIDUE
         return 1.0
     end
@@ -213,14 +263,14 @@ function _parse_repeat_quantifier(text::AbstractString, i::Int)
     return (repeat_min, repeat_max, nextind(text, close_idx))
 end
 
-function _mask_from_char(char::Char, options::_ComparisonOptions)
+function _mask_from_char(char::Char, options::ComparisonOptions)
     aa = uppercase(char)
     idx = get(options.alphabet_index, aa, 0)
     idx == 0 && throw(ArgumentError("Unsupported residue '$char' for selected alphabet."))
     return UInt32(1) << (idx - 1)
 end
 
-function _class_mask(raw::AbstractString, options::_ComparisonOptions)
+function _class_mask(raw::AbstractString, options::ComparisonOptions)
     isempty(raw) && throw(ArgumentError("Empty character class is not allowed."))
     invert = startswith(raw, "^")
     body = invert ? raw[nextind(raw, firstindex(raw)):end] : raw
@@ -236,7 +286,7 @@ function _class_mask(raw::AbstractString, options::_ComparisonOptions)
     return mask
 end
 
-function _mask_to_chars(mask::UInt32, options::_ComparisonOptions; as_lowercase::Bool = false)
+function _mask_to_chars(mask::UInt32, options::ComparisonOptions; as_lowercase::Bool = false)
     chars = Char[]
     for (i, aa) in enumerate(options.alphabet)
         if (mask & (UInt32(1) << (i - 1))) != 0
@@ -246,7 +296,7 @@ function _mask_to_chars(mask::UInt32, options::_ComparisonOptions; as_lowercase:
     return chars
 end
 
-function _mask_to_symbol(mask::UInt32, options::_ComparisonOptions;
+function _mask_to_symbol(mask::UInt32, options::ComparisonOptions;
         as_lowercase::Bool = false, wildcard_symbol::String = "x")
     if mask == options.alphabet_mask
         return as_lowercase ? Base.lowercase(wildcard_symbol) : wildcard_symbol
@@ -256,7 +306,7 @@ function _mask_to_symbol(mask::UInt32, options::_ComparisonOptions;
     return "[" * join(chars) * "]"
 end
 
-function _canonical_token(position::_Position, options::_ComparisonOptions)
+function _canonical_token(position::_Position, options::ComparisonOptions)
     if position.kind == _NTERMINUS
         return "^"
     elseif position.kind == _CTERMINUS
@@ -265,7 +315,7 @@ function _canonical_token(position::_Position, options::_ComparisonOptions)
     return _mask_to_symbol(position.mask, options; as_lowercase = false, wildcard_symbol = "x")
 end
 
-function _parse_motif(motif::AbstractString, options::_ComparisonOptions)
+function _parse_motif(motif::AbstractString, options::ComparisonOptions)
     stripped = strip(motif)
     isempty(stripped) && throw(ArgumentError("Motif cannot be empty."))
 
@@ -333,7 +383,7 @@ function _variant_count(tokens::Vector{_Token})
     return total
 end
 
-function _expand_variants(parsed::_ParsedMotif, options::_ComparisonOptions)
+function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
     nvariants = _variant_count(parsed.tokens)
     if nvariants > options.max_variants
         throw(ArgumentError("Motif $(parsed.original) expands to $nvariants variants, above max_variants=$(options.max_variants)."))
@@ -377,9 +427,9 @@ function _match_symbol(
         qpos::_Position,
         spos::_Position,
         intersection::UInt32,
-        relation::Symbol,
+        relation::_RelationshipType,
         mismatch::Bool,
-        options::_ComparisonOptions
+        options::ComparisonOptions
 )
     if qpos.kind == _NTERMINUS
         return "^"
@@ -396,7 +446,7 @@ function _match_symbol(
         union_mask = qpos.mask | spos.mask
         return _mask_to_symbol(union_mask, options; as_lowercase = true, wildcard_symbol = "x")
     end
-    if relation == :exact
+    if relation == _REL_EXACT
         if qwild || swild
             if qwild
                 return _mask_to_symbol(spos.mask, options; as_lowercase = true, wildcard_symbol = "x")
@@ -416,92 +466,92 @@ end
 
 function _relationship_type_from_flags(has_variant::Bool, has_degenerate::Bool, has_complex::Bool)
     if has_complex || (has_variant && has_degenerate)
-        return :complex
+        return _REL_COMPLEX
     elseif has_variant
-        return :variant
+        return _REL_VARIANT
     elseif has_degenerate
-        return :degenerate
+        return _REL_DEGENERATE
     else
-        return :exact
+        return _REL_EXACT
     end
 end
 
-function _reverse_type(relationship_type::Symbol)
-    if relationship_type == :variant
-        return :degenerate
-    elseif relationship_type == :degenerate
-        return :variant
+function _reverse_type(relationship_type::_RelationshipType)
+    if relationship_type == _REL_VARIANT
+        return _REL_DEGENERATE
+    elseif relationship_type == _REL_DEGENERATE
+        return _REL_VARIANT
     end
     return relationship_type
 end
 
 function _relationship_length(qlen::Int, slen::Int, overlap::Int)
     if overlap == qlen && qlen == slen
-        return :match
+        return _LEN_MATCH
     elseif overlap == slen && qlen > slen
-        return :parent
+        return _LEN_PARENT
     elseif overlap == qlen && slen > qlen
-        return :subsequence
+        return _LEN_SUBSEQUENCE
     else
-        return :overlap
+        return _LEN_OVERLAP
     end
 end
 
-function _reverse_length(length_type::Symbol)
-    if length_type == :parent
-        return :subsequence
-    elseif length_type == :subsequence
-        return :parent
+function _reverse_length(length_type::_RelationshipLength)
+    if length_type == _LEN_PARENT
+        return _LEN_SUBSEQUENCE
+    elseif length_type == _LEN_SUBSEQUENCE
+        return _LEN_PARENT
     end
     return length_type
 end
 
-function _relationship_word(relationship_type::Symbol, length_type::Symbol)
-    return _RELATIONSHIP_TYPE_TO_WORD[relationship_type] * " " *
-           _RELATIONSHIP_LENGTH_TO_WORD[length_type]
+function _relationship_word(relationship_type::_RelationshipType, length_type::_RelationshipLength)
+    return _RELATIONSHIP_TYPE_WORDS[Int(relationship_type) + 1] * " " *
+           _RELATIONSHIP_LENGTH_WORDS[Int(length_type) + 1]
 end
 
-function _relationship_code(relationship_type::Symbol, length_type::Symbol)
-    return _RELATIONSHIP_TYPE_TO_CODE[relationship_type] * "-" *
-           _RELATIONSHIP_LENGTH_TO_CODE[length_type]
+function _relationship_code(relationship_type::_RelationshipType, length_type::_RelationshipLength)
+    return _RELATIONSHIP_TYPE_CODES[Int(relationship_type) + 1] * "-" *
+           _RELATIONSHIP_LENGTH_CODES[Int(length_type) + 1]
 end
 
-function _compare_positions(qpos::_Position, spos::_Position, options::_ComparisonOptions)
+function _compare_positions(qpos::_Position, spos::_Position, options::ComparisonOptions)
     if qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
         if qpos.kind == spos.kind
             return (hard_mismatch = false, mismatch = false,
-                relation = :exact, intersection = UInt32(0), ic = 1.0,
+                relation = _REL_EXACT, intersection = UInt32(0), ic = 1.0,
                 contributes_position = true, exact_fixed = false)
         end
         return (hard_mismatch = true, mismatch = true,
-            relation = :complex, intersection = UInt32(0), ic = 0.0,
+            relation = _REL_COMPLEX, intersection = UInt32(0), ic = 0.0,
             contributes_position = false, exact_fixed = false)
     end
 
     intersection = qpos.mask & spos.mask
     if intersection == 0
         return (hard_mismatch = false, mismatch = true,
-            relation = :complex, intersection = intersection, ic = 0.0,
+            relation = _REL_COMPLEX, intersection = intersection, ic = 0.0,
             contributes_position = false, exact_fixed = false)
     end
 
     relation = if qpos.mask == spos.mask
-        :exact
+        _REL_EXACT
     elseif (qpos.mask & ~spos.mask) == 0
-        :variant
+        _REL_VARIANT
     elseif (spos.mask & ~qpos.mask) == 0
-        :degenerate
+        _REL_DEGENERATE
     elseif options.allow_ambiguous_overlap
-        :complex
+        _REL_COMPLEX
     else
-        return (hard_mismatch = true, mismatch = true, relation = :complex,
+        return (hard_mismatch = true, mismatch = true, relation = _REL_COMPLEX,
             intersection = intersection, ic = 0.0,
             contributes_position = false, exact_fixed = false)
     end
 
     ic = min(_position_ic(qpos, options), _position_ic(spos, options))
     contributes = !_is_wildcard(qpos, options) && !_is_wildcard(spos, options)
-    exact_fixed = relation == :exact && _is_fixed(qpos) && _is_fixed(spos)
+    exact_fixed = relation == _REL_EXACT && _is_fixed(qpos) && _is_fixed(spos)
     return (
         hard_mismatch = false,
         mismatch = false,
@@ -513,11 +563,18 @@ function _compare_positions(qpos::_Position, spos::_Position, options::_Comparis
     )
 end
 
+function _query_fixed_required(mode::MatchFixMode)
+    mode == MatchFixQueryFixed || mode == MatchFixBothFixed
+end
+function _search_fixed_required(mode::MatchFixMode)
+    mode == MatchFixSearchFixed || mode == MatchFixBothFixed
+end
+
 function _evaluate_alignment(
         query_variant::_MotifVariant,
         search_variant::_MotifVariant,
         shift::Int,
-        options::_ComparisonOptions
+        options::ComparisonOptions
 )
     qlen = length(query_variant.positions)
     slen = length(search_variant.positions)
@@ -555,17 +612,17 @@ function _evaluate_alignment(
             match_ic += cmp.ic
             matched_positions += cmp.contributes_position ? 1 : 0
             exact_fixed_matches += cmp.exact_fixed ? 1 : 0
-            has_variant |= cmp.relation == :variant
-            has_degenerate |= cmp.relation == :degenerate
-            has_complex |= cmp.relation == :complex
+            has_variant |= cmp.relation == _REL_VARIANT
+            has_degenerate |= cmp.relation == _REL_DEGENERATE
+            has_complex |= cmp.relation == _REL_COMPLEX
         end
 
-        if options.matchfix == 1 || options.matchfix == 3
+        if _query_fixed_required(options.matchfix)
             if _is_fixed(qpos) && !cmp.exact_fixed
                 return nothing
             end
         end
-        if options.matchfix == 2 || options.matchfix == 3
+        if _search_fixed_required(options.matchfix)
             if _is_fixed(spos) && !cmp.exact_fixed
                 return nothing
             end
@@ -596,10 +653,10 @@ function _evaluate_alignment(
     return _Candidate(
         query_variant,
         search_variant,
-        _relationship_word(rel_type, rel_length),
-        _relationship_word(rev_type, rev_length),
-        _relationship_code(rel_type, rel_length),
-        _relationship_code(rev_type, rev_length),
+        rel_type,
+        rel_length,
+        rev_type,
+        rev_length,
         String(take!(matched_pattern)),
         matched_positions,
         exact_fixed_matches,
@@ -624,7 +681,7 @@ function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     return false
 end
 
-function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif, options::_ComparisonOptions)
+function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif, options::ComparisonOptions)
     query_variants = _expand_variants(parsed_query, options)
     search_variants = _expand_variants(parsed_search, options)
     best = nothing
@@ -658,10 +715,14 @@ function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif
         normalized_query = parsed_query.normalized,
         normalized_search = parsed_search.normalized,
         matched = true,
-        query_relationship = best.query_relationship,
-        search_relationship = best.search_relationship,
-        query_relationship_code = best.query_relationship_code,
-        search_relationship_code = best.search_relationship_code,
+        query_relationship = _relationship_word(
+            best.query_relationship_type, best.query_relationship_length),
+        search_relationship = _relationship_word(
+            best.search_relationship_type, best.search_relationship_length),
+        query_relationship_code = _relationship_code(
+            best.query_relationship_type, best.query_relationship_length),
+        search_relationship_code = _relationship_code(
+            best.search_relationship_type, best.search_relationship_length),
         matched_pattern = best.matched_pattern,
         matched_positions = best.matched_positions,
         match_ic = best.match_ic,
@@ -674,48 +735,42 @@ function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif
 end
 
 """
-    normalize_motif(motif::String; alphabet::Symbol = :protein) -> String
+    normalize_motif(motif::AbstractString; alphabet::Symbol = :protein) -> String
 
 Parse and canonicalize a motif expression into a deterministic representation.
 Supported syntax includes fixed residues, bracket classes (including negation),
 `x`/`.` wildcards, `^`/`\$` termini, and `{m,n}` (or `(m,n)`) repeat quantifiers.
 """
-function normalize_motif(motif::String; alphabet::Symbol = :protein)
-    options = _build_options(; alphabet, min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+function normalize_motif(motif::AbstractString; alphabet::Symbol = :protein)
+    options = ComparisonOptions(; alphabet, min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     return _parse_motif(motif, options).normalized
 end
 
 """
-    compare(a::String, b::String; kwargs...) -> ComparisonResult
+    compare(a::AbstractString, b::AbstractString, options::ComparisonOptions) -> ComparisonResult
 
 Compare two motifs and return the best relationship according to the
 CompariMotif scoring scheme described in Edwards et al. (2008).
-
-Keyword arguments:
-- `alphabet::Symbol = :protein`: `:protein` or `:dna`.
-- `min_shared_positions::Int = 2`: minimum non-wildcard matched positions.
-- `normalized_ic_cutoff::Real = 0.5`: minimum normalized information content.
-- `matchfix::Int = 0`: fixed-position matching mode (`0` none, `1` query fixed,
-  `2` search fixed, `3` both).
-- `mismatches::Int = 0`: tolerated defined-position mismatches.
-- `allow_ambiguous_overlap::Bool = true`: allow partial class overlap.
-- `max_variants::Int = 10000`: maximum expanded variants per motif.
 """
-function compare(a::String, b::String; kwargs...)
-    options = _build_options(; kwargs...)
+function compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)
     parsed_a = _parse_motif(a, options)
     parsed_b = _parse_motif(b, options)
     return _compare_parsed(parsed_a, parsed_b, options)
 end
 
 """
-    compare(motifs::Vector{String}, db::Vector{String}; kwargs...) -> Matrix{ComparisonResult}
+    compare(motifs::AbstractVector{<:AbstractString},
+            db::AbstractVector{<:AbstractString},
+            options::ComparisonOptions) -> Matrix{ComparisonResult}
 
 Compute all pairwise comparisons between query motifs and database motifs.
 The result matrix has size `(length(motifs), length(db))`.
 """
-function compare(motifs::Vector{String}, db::Vector{String}; kwargs...)
-    options = _build_options(; kwargs...)
+function compare(
+        motifs::AbstractVector{<:AbstractString},
+        db::AbstractVector{<:AbstractString},
+        options::ComparisonOptions
+)
     parsed_queries = [_parse_motif(motif, options) for motif in motifs]
     parsed_db = [_parse_motif(motif, options) for motif in db]
 
@@ -729,19 +784,24 @@ function compare(motifs::Vector{String}, db::Vector{String}; kwargs...)
 end
 
 """
-    compare(motifs::Vector{String}; kwargs...) -> Matrix{ComparisonResult}
+    compare(motifs::AbstractVector{<:AbstractString},
+            options::ComparisonOptions) -> Matrix{ComparisonResult}
 
 Convenience method for all-vs-all motif comparison.
 """
-compare(motifs::Vector{String}; kwargs...) = compare(motifs, motifs; kwargs...)
+function compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)
+    compare(motifs, motifs, options)
+end
 
 """
     write_results_tsv(path, motifs, db, results)
 
 Write pairwise comparison results to a deterministic TSV file.
 """
-function write_results_tsv(path::AbstractString, motifs::Vector{String},
-        db::Vector{String}, results::Matrix{ComparisonResult})
+function write_results_tsv(path::AbstractString,
+        motifs::AbstractVector{<:AbstractString},
+        db::AbstractVector{<:AbstractString},
+        results::Matrix{ComparisonResult})
     size(results) == (length(motifs), length(db)) ||
         throw(ArgumentError("`results` dimensions must match `(length(motifs), length(db))`."))
 

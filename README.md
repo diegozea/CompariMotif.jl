@@ -7,10 +7,11 @@ expressions.
 
 ## API
 
-- `compare(a::String, b::String; kwargs...)::ComparisonResult`
-- `compare(motifs::Vector{String}, db::Vector{String}; kwargs...)::Matrix{ComparisonResult}`
-- `compare(motifs::Vector{String}; kwargs...)::Matrix{ComparisonResult}`
-- `normalize_motif(motif::String; alphabet = :protein)::String`
+- `ComparisonOptions(; kwargs...)`
+- `compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult`
+- `compare(motifs::AbstractVector{<:AbstractString}, db::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
+- `compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
+- `normalize_motif(motif::AbstractString; alphabet = :protein)::String`
 - `write_results_tsv(path, motifs, db, results)`
 
 ## Minimal example
@@ -19,7 +20,8 @@ expressions.
 using CompariMotif
 
 motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]", "RxLE"]
-results = compare(motifs; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+results = compare(motifs, options)
 
 results[3, 4]  # single pair summary
 write_results_tsv("comparimotif_results.tsv", motifs, motifs, results)  # save full matrix
