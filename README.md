@@ -1,12 +1,48 @@
-# CompariMotif
+# CompariMotif.jl
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://diegozea.github.io/CompariMotif.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://diegozea.github.io/CompariMotif.jl/dev/)
-[![Build Status](https://github.com/diegozea/CompariMotif.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/diegozea/CompariMotif.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/diegozea/CompariMotif.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/diegozea/CompariMotif.jl)
-[![Coverage](https://coveralls.io/repos/github/diegozea/CompariMotif.jl/badge.svg?branch=main)](https://coveralls.io/github/diegozea/CompariMotif.jl?branch=main)
-[![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+Clean-room, unofficial Julia implementation of the motif–motif comparison strategy 
+described by Edwards, Davey and Shields (Bioinformatics 24(10):1307–1309, 2008). It 
+supports the comparison of protein and DNA motifs, represented as regular 
+expressions.
 
-## Citing
+## API
 
-See [`CITATION.bib`](CITATION.bib) for the relevant reference(s).
+- `compare(a::String, b::String; kwargs...)::ComparisonResult`
+- `compare(motifs::Vector{String}, db::Vector{String}; kwargs...)::Matrix{ComparisonResult}`
+- `compare(motifs::Vector{String}; kwargs...)::Matrix{ComparisonResult}`
+- `normalize_motif(motif::String; alphabet = :protein)::String`
+- `write_results_tsv(path, motifs, db, results)`
+
+## Minimal example
+
+```julia
+using CompariMotif
+
+motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]", "RxLE"]
+results = compare(motifs; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+
+results[3, 4]  # single pair summary
+write_results_tsv("comparimotif_results.tsv", motifs, motifs, results)  # save full matrix
+```
+
+## Scope differences compared to the original CompariMotif
+
+This package implements the paper-defined motif comparison core, but it does not
+aim to replicate the full SLiMSuite application surface. In particular:
+
+- no standalone CLI interface or SLiMSuite pipeline integration;
+- no raw `.tdt` compatibility/output mode (deterministic TSV writer is provided);
+- no `Name*`/`Desc*` metadata fields in API results or fixtures (regex motifs only);
+- no XGMML/network export outputs.
+
+## Fixtures and oracle regeneration
+
+Oracle fixtures, i.e. expected results for black-box tests, are committed under 
+`data/fixtures/` and tests do not call the CompariMotif code directly. Only normalized 
+TSV fixtures are committed rather than the raw `.tdt` output. To regenerate fixtures 
+see the `README.md` in `data/fixtures/`.
+
+## License hygiene
+
+This repository is MIT-licensed. Implementation is derived from the paper and
+black-box oracle observations only. GPL CompariMotif source code is not used.

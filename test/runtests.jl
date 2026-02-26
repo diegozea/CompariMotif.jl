@@ -1,14 +1,6 @@
-using CompariMotif
-using Test
-using Aqua
-using JET
+using TestItemRunner
 
-@testset "CompariMotif.jl" begin
-    @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(CompariMotif)
-    end
-    @testset "Code linting (JET.jl)" begin
-        JET.test_package(CompariMotif; target_defined_modules = true)
-    end
-    # Write your tests here.
+# Enforce oracle-independent tests regardless of local environment setup.
+withenv("SLiMSuite_PATH" => nothing) do
+    @run_package_tests
 end

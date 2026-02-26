@@ -1,0 +1,15 @@
+# Pattern
+RKLI
+ARKLI
+R[KR]L[IV]
+AR[KR]L[IV]
+[KR]L[IMV]
+[RKQ]L[IV]
+A[KR]L[IMV]
+[RKQ]L[IV]T
+[KR]xLx[FYLIMVP]
+RxLE
+^RKLI
+RKLI$
+R.x{0,1}L
+RKL
