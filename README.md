@@ -25,7 +25,12 @@ results[3, 4]  # single pair summary
 write_results_tsv("comparimotif_results.tsv", motifs, motifs, results)  # save full matrix
 ```
 
-## Scope differences compared to the original CompariMotif
+## Official implementation
+
+The official CompariMotif implementation is distributed as part of SLiMSuite:
+<https://github.com/slimsuite/SLiMSuite> (tool path: `tools/comparimotif_V3.py`).
+
+### Scope differences compared to the original CompariMotif
 
 This package implements the paper-defined motif comparison core, but it does not
 aim to replicate the full SLiMSuite application surface. In particular:
@@ -35,14 +40,23 @@ aim to replicate the full SLiMSuite application surface. In particular:
 - no `Name*`/`Desc*` metadata fields in API results or fixtures (regex motifs only);
 - no XGMML/network export outputs.
 
-## Fixtures and oracle regeneration
+### Fixtures and oracle regeneration
 
 Oracle fixtures, i.e. expected results for black-box tests, are committed under 
 `data/fixtures/` and tests do not call the CompariMotif code directly. Only normalized 
 TSV fixtures are committed rather than the raw `.tdt` output. To regenerate fixtures 
 see the `README.md` in `data/fixtures/`.
 
-## License hygiene
+### License hygiene
 
 This repository is MIT-licensed. Implementation is derived from the paper and
 black-box oracle observations only. GPL CompariMotif source code is not used.
+
+## Citation
+
+If you use this Julia pipeline in scientific work, please cite the original
+algorithm paper:
+
+- Edwards RJ, Davey NE, Shields DC. *CompariMotif: quick and easy comparisons of
+  sequence motifs*. Bioinformatics 24(10):1307-1309 (2008).
+  <https://doi.org/10.1093/bioinformatics/btn105>
