@@ -1,5 +1,7 @@
 module CompariMotif
 
+using AutoPrettyPrinting
+
 export ComparisonOptions, ComparisonResult, MatchFixMode, MatchFixBothFixed,
        MatchFixNone, MatchFixQueryFixed, MatchFixSearchFixed, compare,
        normalize_motif, write_results_tsv
@@ -26,6 +28,8 @@ Base.@kwdef struct ComparisonResult
     query_information::Float64 = 0.0
     search_information::Float64 = 0.0
 end
+
+@def_pprint mime_types="text/plain" base_show=true ComparisonResult
 
 @enum _PositionKind::UInt8 begin
     _RESIDUE = 0
@@ -107,6 +111,8 @@ struct ComparisonOptions
     max_variants::Int
 end
 
+@def_pprint mime_types="text/plain" base_show=true ComparisonOptions
+
 @enum _RelationshipType::UInt8 begin
     _REL_EXACT = 0
     _REL_VARIANT = 1
@@ -159,11 +165,6 @@ function _coerce_matchfix(mode::AbstractString)
     _coerce_matchfix(Symbol(replace(lowercase(strip(mode)), ' ' => '_')))
 end
 
-"""
-    ComparisonOptions(; kwargs...) -> ComparisonOptions
-
-Create validated comparison options for `compare`.
-"""
 function ComparisonOptions(;
         alphabet::Symbol = :protein,
         min_shared_positions::Int = 2,

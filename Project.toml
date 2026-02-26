@@ -1,7 +1,11 @@
 name = "CompariMotif"
 uuid = "aecef331-8c7a-44c4-b913-ba8debb6e116"
-authors = ["Diego Javier Zea <diegozea@gmail.com> and contributors"]
 version = "0.0.1"
+authors = ["Diego Javier Zea <diegozea@gmail.com> and contributors"]
+
+[deps]
+AutoPrettyPrinting = "9109d3c5-9510-494f-be9f-db449708e717"
 
 [compat]
+AutoPrettyPrinting = "0.1.8"
 julia = "1.10"
