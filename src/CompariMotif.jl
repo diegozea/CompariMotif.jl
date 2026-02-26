@@ -9,6 +9,27 @@ export ComparisonOptions, ComparisonResult, MatchFixMode, MatchFixBothFixed,
 const _PROTEIN_ALPHABET = collect("ACDEFGHIKLMNPQRSTVWY")
 const _DNA_ALPHABET = collect("ACGT")
 
+"""
+    ComparisonResult
+
+Result record produced by [`compare`](@ref) for one query/search motif pair.
+
+Fields:
+- `query`, `search`: original input motifs.
+- `normalized_query`, `normalized_search`: canonicalized motifs used internally.
+- `matched`: whether the best-scoring valid alignment passed all thresholds.
+- `query_relationship`, `search_relationship`: human-readable relationship labels.
+- `query_relationship_code`, `search_relationship_code`: compact relationship codes.
+- `matched_pattern`: consensus/overlap pattern for the selected alignment.
+- `matched_positions`: count of matched non-wildcard positions.
+- `match_ic`: total information content for matched positions.
+- `normalized_ic`: `match_ic` normalized by the lower motif information content.
+- `core_ic`: information content normalized by core overlap length.
+- `score`: derived summary score (`normalized_ic * matched_positions`).
+- `query_information`, `search_information`: total information content per motif.
+
+See also [`ComparisonOptions`](@ref), [`normalize_motif`](@ref), [`write_results_tsv`](@ref).
+"""
 Base.@kwdef struct ComparisonResult
     query::String
     search::String
@@ -37,6 +58,13 @@ end
     _CTERMINUS = 2
 end
 
+const _DOC_OPTIONS_REF = "Configure thresholds and matching semantics with [`ComparisonOptions`](@ref)."
+const _DOC_RESULT_REF = "Returns a [`ComparisonResult`](@ref)."
+const _DOC_NORMALIZE_REF = "Use [`normalize_motif`](@ref) for deterministic motif canonicalization."
+const _DOC_COMPARE_REF = "Compute similarities with [`compare`](@ref)."
+const _DOC_TSV_REF = "Persist matrices with [`write_results_tsv`](@ref)."
+const _DOC_VARIANT_SIZE_REF = "The result matrix has size `(length(motifs), length(db))`."
+
 """
     MatchFixMode
 
@@ -45,6 +73,8 @@ Fixed-position matching behavior used by CompariMotif:
 - `MatchFixQueryFixed`: fixed query positions must have exact fixed matches.
 - `MatchFixSearchFixed`: fixed search positions must have exact fixed matches.
 - `MatchFixBothFixed`: enforce fixed-position matching on both motifs.
+
+Used by the `matchfix` keyword in [`ComparisonOptions`](@ref).
 """
 @enum MatchFixMode::UInt8 begin
     MatchFixNone = 0
@@ -83,7 +113,7 @@ end
 Reusable configuration object for CompariMotif comparisons.
 
 Construct once with [`ComparisonOptions(; kwargs...)`](@ref) and reuse across
-many `compare` calls.
+many [`compare`](@ref) calls.
 
 # Keywords
 - `alphabet::Symbol = :protein`: comparison alphabet (`:protein` or `:dna`).
@@ -97,6 +127,8 @@ many `compare` calls.
 - `allow_ambiguous_overlap::Bool = true`: whether partial class overlaps are
   allowed as complex matches.
 - `max_variants::Int = 10_000`: maximum expanded variants per motif.
+
+See also [`MatchFixMode`](@ref), [`compare`](@ref), [`ComparisonResult`](@ref).
 """
 struct ComparisonOptions
     alphabet::Vector{Char}
@@ -740,7 +772,10 @@ end
 
 Parse and canonicalize a motif expression into a deterministic representation.
 Supported syntax includes fixed residues, bracket classes (including negation),
-`x`/`.` wildcards, `^`/`\$` termini, and `{m,n}` (or `(m,n)`) repeat quantifiers.
+`x`/`.` wildcards, `^`/`\$` termini, and `{n}`/`{m,n}` (or `(n)`/`(m,n)`) repeat quantifiers.
+
+$(_DOC_OPTIONS_REF)
+$(_DOC_COMPARE_REF)
 """
 function normalize_motif(motif::AbstractString; alphabet::Symbol = :protein)
     options = ComparisonOptions(; alphabet, min_shared_positions = 1, normalized_ic_cutoff = 0.0)
@@ -749,24 +784,33 @@ end
 
 """
     compare(a::AbstractString, b::AbstractString, options::ComparisonOptions) -> ComparisonResult
+    compare(motifs::AbstractVector{<:AbstractString},
+            db::AbstractVector{<:AbstractString},
+            options::ComparisonOptions) -> Matrix{ComparisonResult}
+    compare(motifs::AbstractVector{<:AbstractString},
+            options::ComparisonOptions) -> Matrix{ComparisonResult}
 
-Compare two motifs and return the best relationship according to the
-CompariMotif scoring scheme described in Edwards et al. (2008).
+Compare motifs according to the CompariMotif scoring scheme described in
+Edwards et al. (2008).
+
+- Pairwise mode compares one query motif against one search motif.
+- Matrix mode computes all pairwise query-vs-database comparisons.
+- All-vs-all mode is a convenience alias for `compare(motifs, motifs, options)`.
+
+$(_DOC_OPTIONS_REF)
+$(_DOC_VARIANT_SIZE_REF)
+$(_DOC_RESULT_REF)
+$(_DOC_NORMALIZE_REF)
+$(_DOC_TSV_REF)
 """
+function compare end
+
 function compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)
     parsed_a = _parse_motif(a, options)
     parsed_b = _parse_motif(b, options)
     return _compare_parsed(parsed_a, parsed_b, options)
 end
 
-"""
-    compare(motifs::AbstractVector{<:AbstractString},
-            db::AbstractVector{<:AbstractString},
-            options::ComparisonOptions) -> Matrix{ComparisonResult}
-
-Compute all pairwise comparisons between query motifs and database motifs.
-The result matrix has size `(length(motifs), length(db))`.
-"""
 function compare(
         motifs::AbstractVector{<:AbstractString},
         db::AbstractVector{<:AbstractString},
@@ -784,12 +828,6 @@ function compare(
     return results
 end
 
-"""
-    compare(motifs::AbstractVector{<:AbstractString},
-            options::ComparisonOptions) -> Matrix{ComparisonResult}
-
-Convenience method for all-vs-all motif comparison.
-"""
 function compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)
     compare(motifs, motifs, options)
 end
@@ -798,6 +836,10 @@ end
     write_results_tsv(path, motifs, db, results)
 
 Write pairwise comparison results to a deterministic TSV file.
+Pass `results` from `compare(motifs, db, options)` with matching matrix dimensions.
+
+$(_DOC_COMPARE_REF)
+$(_DOC_RESULT_REF)
 """
 function write_results_tsv(path::AbstractString,
         motifs::AbstractVector{<:AbstractString},
