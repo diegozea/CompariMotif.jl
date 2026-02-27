@@ -2,8 +2,17 @@
     normalize_motif(motif::AbstractString; alphabet::Symbol = :protein) -> String
 
 Parse and canonicalize a motif expression into a deterministic representation.
-Supported syntax includes fixed residues, bracket classes (including negation),
-`x`/`.` wildcards, `^`/`\$` termini, and `{n}`/`{m,n}` (or `(n)`/`(m,n)`) repeat quantifiers.
+Supported syntax includes fixed residues from the selected alphabet, bracket
+classes (including negation), `x`/`X`/`.` wildcards, `^`/`\$` termini, and
+`{n}`/`{m,n}` (or `(n)`/`(m,n)`) repeat quantifiers.
+
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> normalize_motif("r[kR].{0,1}l")
+"R[RK]x{0,1}L"
+```
 
 $(_DOC_OPTIONS_REF)
 $(_DOC_COMPARE_REF)
@@ -30,14 +39,31 @@ Edwards et al. (2008).
 - Matrix mode computes all pairwise query-vs-database comparisons.
 - All-vs-all mode is a convenience alias for `compare(motifs, motifs, options)`.
 
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0);
+
+julia> result = compare("RKLI", "R[KR]L[IV]", options);
+
+julia> result.matched
+true
+```
+
 $(_DOC_OPTIONS_REF)
 $(_DOC_VARIANT_SIZE_REF)
 $(_DOC_RESULT_REF)
 $(_DOC_NORMALIZE_REF)
-$(_DOC_TSV_REF)
+$(_DOC_TABLE_REF)
 """
 function compare end
 
+"""
+    compare(a::AbstractString, b::AbstractString, options::ComparisonOptions) -> ComparisonResult
+
+Pairwise motif comparison.
+"""
 function compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)
     # Parse both motifs once, then run the shared comparison core.
     parsed_a = _parse_motif(a, options)
@@ -45,6 +71,11 @@ function compare(a::AbstractString, b::AbstractString, options::ComparisonOption
     return _compare_parsed(parsed_a, parsed_b, options)
 end
 
+"""
+    compare(motifs, db, options) -> Matrix{ComparisonResult}
+
+Compare all query motifs against all search-database motifs.
+"""
 function compare(
         motifs::AbstractVector{<:AbstractString},
         db::AbstractVector{<:AbstractString},
@@ -64,6 +95,11 @@ function compare(
     return results
 end
 
+"""
+    compare(motifs, options) -> Matrix{ComparisonResult}
+
+Convenience all-vs-all matrix mode.
+"""
 function compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)
     # Convenience all-vs-all matrix mode.
     compare(motifs, motifs, options)

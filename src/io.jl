@@ -1,73 +1,137 @@
 """
-    write_results_tsv(path, motifs, db, results)
+    _empty_result_columns(nrows::Int) -> NamedTuple
 
-Write pairwise comparison results to a deterministic TSV file.
-Pass `results` from `compare(motifs, db, options)` with matching matrix dimensions.
+Allocate typed result columns for `nrows` rows.
+"""
+function _empty_result_columns(nrows::Int)
+    (
+        query = Vector{String}(undef, nrows),
+        search = Vector{String}(undef, nrows),
+        normalized_query = Vector{String}(undef, nrows),
+        normalized_search = Vector{String}(undef, nrows),
+        matched = Vector{Bool}(undef, nrows),
+        query_relationship = Vector{String}(undef, nrows),
+        search_relationship = Vector{String}(undef, nrows),
+        matched_pattern = Vector{String}(undef, nrows),
+        matched_positions = Vector{Int}(undef, nrows),
+        match_ic = Vector{Float64}(undef, nrows),
+        normalized_ic = Vector{Float64}(undef, nrows),
+        core_ic = Vector{Float64}(undef, nrows),
+        score = Vector{Float64}(undef, nrows),
+        query_information = Vector{Float64}(undef, nrows),
+        search_information = Vector{Float64}(undef, nrows)
+    )
+end
+
+"""
+    _set_result_row!(columns, row::Int, result::ComparisonResult)
+
+Write one `ComparisonResult` into preallocated column vectors.
+"""
+function _set_result_row!(columns::NamedTuple, row::Int, result::ComparisonResult)
+    columns.query[row] = result.query
+    columns.search[row] = result.search
+    columns.normalized_query[row] = result.normalized_query
+    columns.normalized_search[row] = result.normalized_search
+    columns.matched[row] = result.matched
+    columns.query_relationship[row] = result.query_relationship
+    columns.search_relationship[row] = result.search_relationship
+    columns.matched_pattern[row] = result.matched_pattern
+    columns.matched_positions[row] = result.matched_positions
+    columns.match_ic[row] = result.match_ic
+    columns.normalized_ic[row] = result.normalized_ic
+    columns.core_ic[row] = result.core_ic
+    columns.score[row] = result.score
+    columns.query_information[row] = result.query_information
+    columns.search_information[row] = result.search_information
+    return nothing
+end
+
+"""
+    to_column_table(results) -> NamedTuple
+
+Convert comparison results into a column-oriented `NamedTuple` where each key is
+a column name and each value is a vector column.
+
+- `to_column_table(::ComparisonResult)` returns a one-row table.
+- `to_column_table(::AbstractVector{<:ComparisonResult})` adds `result_index`.
+- `to_column_table(::AbstractMatrix{<:ComparisonResult})` adds `query_index` and
+  `search_index` with one row per matrix cell in deterministic row-major order.
+
+The returned object can be converted to a `DataFrame` or written using `CSV.write`
+without requiring either dependency in the package itself.
+
+# Examples
+```jldoctest
+julia> using CompariMotif, DataFrames
+
+julia> motifs = ["RKLI", "R[KR]L[IV]"];
+
+julia> options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0);
+
+julia> table = to_column_table(compare(motifs, options));
+
+julia> df = DataFrame(table);
+
+julia> size(df, 1)
+4
+
+julia> "query_index" in names(df) && "search_index" in names(df)
+true
+```
+
+```julia
+using CSV
+CSV.write("comparimotif_results.tsv", to_column_table(compare(motifs, options)))
+```
 
 $(_DOC_COMPARE_REF)
 $(_DOC_RESULT_REF)
 """
-function write_results_tsv(path::AbstractString,
-        motifs::AbstractVector{<:AbstractString},
-        db::AbstractVector{<:AbstractString},
-        results::Matrix{ComparisonResult})
-    # Guard against mismatched caller inputs before writing any file content.
-    size(results) == (length(motifs), length(db)) ||
-        throw(ArgumentError("`results` dimensions must match `(length(motifs), length(db))`."))
+function to_column_table(result::ComparisonResult)
+    columns = _empty_result_columns(1)
+    _set_result_row!(columns, 1, result)
+    return columns
+end
 
-    open(path, "w") do io
-        # Stable column layout used by fixtures and downstream scripts.
-        println(io,
-            join(
-                [
-                    "QueryIndex",
-                    "SearchIndex",
-                    "QueryMotif",
-                    "SearchMotif",
-                    "Matched",
-                    "QueryRelationship",
-                    "SearchRelationship",
-                    "QueryCode",
-                    "SearchCode",
-                    "MatchedPattern",
-                    "MatchPos",
-                    "MatchIC",
-                    "NormIC",
-                    "CoreIC",
-                    "Score",
-                    "InfoQuery",
-                    "InfoSearch"
-                ],
-                '\t'))
-        for i in eachindex(motifs)
-            for j in eachindex(db)
-                result = results[i, j]
-                # Emit one deterministic row per matrix cell.
-                println(io,
-                    join(
-                        [
-                            string(i),
-                            string(j),
-                            motifs[i],
-                            db[j],
-                            result.matched ? "1" : "0",
-                            result.query_relationship,
-                            result.search_relationship,
-                            result.query_relationship_code,
-                            result.search_relationship_code,
-                            result.matched_pattern,
-                            string(result.matched_positions),
-                            # Keep numeric formatting fixed to aid regression diffs.
-                            string(round(result.match_ic; digits = 6)),
-                            string(round(result.normalized_ic; digits = 6)),
-                            string(round(result.core_ic; digits = 6)),
-                            string(round(result.score; digits = 6)),
-                            string(round(result.query_information; digits = 6)),
-                            string(round(result.search_information; digits = 6))
-                        ],
-                        '\t'))
-            end
+"""
+    to_column_table(results::AbstractVector{<:ComparisonResult}) -> NamedTuple
+
+Convert a result vector to a column table with `result_index`.
+"""
+function to_column_table(results::AbstractVector{<:ComparisonResult})
+    nrows = length(results)
+    columns = merge((result_index = Vector{Int}(undef, nrows),), _empty_result_columns(nrows))
+    for (row, result) in enumerate(results)
+        columns.result_index[row] = row
+        _set_result_row!(columns, row, result)
+    end
+    return columns
+end
+
+"""
+    to_column_table(results::AbstractMatrix{<:ComparisonResult}) -> NamedTuple
+
+Convert a result matrix to a column table with `query_index` and `search_index`.
+"""
+function to_column_table(results::AbstractMatrix{<:ComparisonResult})
+    nrows = length(results)
+    columns = merge(
+        (
+            query_index = Vector{Int}(undef, nrows),
+            search_index = Vector{Int}(undef, nrows)
+        ),
+        _empty_result_columns(nrows)
+    )
+
+    row = 0
+    for i in axes(results, 1)
+        for j in axes(results, 2)
+            row += 1
+            columns.query_index[row] = i
+            columns.search_index[row] = j
+            _set_result_row!(columns, row, results[i, j])
         end
     end
-    return path
+    return columns
 end

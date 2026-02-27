@@ -4,7 +4,7 @@ using AutoPrettyPrinting
 
 export ComparisonOptions, ComparisonResult, MatchFixMode, MatchFixBothFixed,
        MatchFixNone, MatchFixQueryFixed, MatchFixSearchFixed, compare,
-       normalize_motif, write_results_tsv
+       normalize_motif, to_column_table
 
 # Module assembly order matters:
 # - foundational constants/types first,

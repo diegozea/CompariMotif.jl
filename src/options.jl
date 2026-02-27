@@ -1,4 +1,15 @@
+"""
+    _coerce_matchfix(mode::MatchFixMode) -> MatchFixMode
+
+Return the match-fix mode unchanged.
+"""
 _coerce_matchfix(mode::MatchFixMode) = mode
+
+"""
+    _coerce_matchfix(mode::Symbol) -> MatchFixMode
+
+Normalize symbol aliases into a concrete [`MatchFixMode`](@ref).
+"""
 function _coerce_matchfix(mode::Symbol)
     # Accept a few user-friendly aliases while keeping one canonical enum internally.
     if mode === :none
@@ -12,11 +23,31 @@ function _coerce_matchfix(mode::Symbol)
     end
     throw(ArgumentError("`matchfix` must be one of :none, :query_fixed, :search_fixed, :both_fixed."))
 end
+
+"""
+    _coerce_matchfix(mode::AbstractString) -> MatchFixMode
+
+Normalize string aliases into a concrete [`MatchFixMode`](@ref).
+"""
 function _coerce_matchfix(mode::AbstractString)
     # Normalize spelling/case before reusing Symbol-based coercion.
     _coerce_matchfix(Symbol(replace(lowercase(strip(mode)), ' ' => '_')))
 end
 
+"""
+    ComparisonOptions(; kwargs...) -> ComparisonOptions
+
+Construct a reusable options object for motif comparisons.
+
+```jldoctest
+julia> using CompariMotif
+
+julia> opts = ComparisonOptions(; alphabet = :dna, min_shared_positions = 1);
+
+julia> String(opts.alphabet)
+"ACGT"
+```
+"""
 function ComparisonOptions(;
         alphabet::Symbol = :protein,
         min_shared_positions::Int = 2,
@@ -46,8 +77,10 @@ function ComparisonOptions(;
         _PROTEIN_ALPHABET
     elseif alphabet === :dna
         _DNA_ALPHABET
+    elseif alphabet === :rna
+        _RNA_ALPHABET
     else
-        throw(ArgumentError("`alphabet` must be :protein or :dna."))
+        throw(ArgumentError("`alphabet` must be :protein, :dna or :rna."))
     end
 
     # Build 1-based residue index -> bit index map.
@@ -56,7 +89,7 @@ function ComparisonOptions(;
         index[aa] = i
     end
     # Full alphabet mask: every residue bit set to one.
-    mask = UInt32((1 << length(alphabet_chars)) - 1)
+    mask = ResidueMask((1 << length(alphabet_chars)) - 1)
 
     return ComparisonOptions(
         alphabet_chars,

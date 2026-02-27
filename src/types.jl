@@ -8,7 +8,6 @@ Fields:
 - `normalized_query`, `normalized_search`: canonicalized motifs used internally.
 - `matched`: whether the best-scoring valid alignment passed all thresholds.
 - `query_relationship`, `search_relationship`: human-readable relationship labels.
-- `query_relationship_code`, `search_relationship_code`: compact relationship codes.
 - `matched_pattern`: consensus/overlap pattern for the selected alignment.
 - `matched_positions`: count of matched non-wildcard positions.
 - `match_ic`: total information content for matched positions.
@@ -17,7 +16,7 @@ Fields:
 - `score`: derived summary score (`normalized_ic * matched_positions`).
 - `query_information`, `search_information`: total information content per motif.
 
-See also [`ComparisonOptions`](@ref), [`normalize_motif`](@ref), [`write_results_tsv`](@ref).
+See also [`ComparisonOptions`](@ref), [`normalize_motif`](@ref), [`to_column_table`](@ref).
 """
 Base.@kwdef struct ComparisonResult
     query::String
@@ -27,8 +26,6 @@ Base.@kwdef struct ComparisonResult
     matched::Bool = false
     query_relationship::String = "No Match"
     search_relationship::String = "No Match"
-    query_relationship_code::String = ""
-    search_relationship_code::String = ""
     matched_pattern::String = ""
     matched_positions::Int = 0
     match_ic::Float64 = 0.0
@@ -68,11 +65,27 @@ Used by the `matchfix` keyword in [`ComparisonOptions`](@ref).
     MatchFixBothFixed = 3
 end
 
+"""
+    ResidueMask
+
+Bit-mask representation used for residue-set operations.
+"""
+const ResidueMask = UInt32
+
+"""
+    ResidueClass
+
+Residue set encoded as a [`ResidueMask`](@ref).
+"""
+struct ResidueClass
+    mask::ResidueMask
+end
+
 # Core atom used everywhere in comparison code.
 # `mask` is meaningful only when `kind == _RESIDUE`.
 struct _Position
     kind::_PositionKind
-    mask::UInt32
+    mask::ResidueMask
 end
 
 # Parser token = one parsed position plus optional repeat range.
@@ -111,7 +124,7 @@ Construct once with [`ComparisonOptions(; kwargs...)`](@ref) and reuse across
 many [`compare`](@ref) calls.
 
 # Keywords
-- `alphabet::Symbol = :protein`: comparison alphabet (`:protein` or `:dna`).
+- `alphabet::Symbol = :protein`: comparison alphabet (`:protein`, `:dna`, or `:rna`).
 - `min_shared_positions::Int = 2`: minimum number of matched, non-wildcard
   positions required for a hit.
 - `normalized_ic_cutoff::Real = 0.5`: minimum normalized information content.
@@ -123,6 +136,16 @@ many [`compare`](@ref) calls.
   allowed as complex matches.
 - `max_variants::Int = 10_000`: maximum expanded variants per motif.
 
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> opts = ComparisonOptions(; alphabet = :rna);
+
+julia> String(opts.alphabet)
+"ACGU"
+```
+
 See also [`MatchFixMode`](@ref), [`compare`](@ref), [`ComparisonResult`](@ref).
 """
 struct ComparisonOptions
@@ -131,7 +154,7 @@ struct ComparisonOptions
     # Maps residue character -> 1-based bit position.
     alphabet_index::Dict{Char, Int}
     # Bitmask with all alphabet residues enabled (wildcard mask).
-    alphabet_mask::UInt32
+    alphabet_mask::ResidueMask
     # Precomputed log base for IC normalization (`log(N)`).
     log_base::Float64
     # Minimum matched non-wildcard positions for a valid hit.
@@ -149,6 +172,41 @@ struct ComparisonOptions
 end
 
 @def_pprint mime_types="text/plain" base_show=true ComparisonOptions
+
+"""
+    overlaps(a::ResidueClass, b::ResidueClass) -> Bool
+
+Return `true` when two residue classes share at least one residue.
+"""
+@inline overlaps(a::ResidueClass, b::ResidueClass) = !iszero(a.mask & b.mask)
+
+"""
+    unionclass(a::ResidueClass, b::ResidueClass) -> ResidueClass
+
+Return the set-union of two residue classes.
+"""
+@inline unionclass(a::ResidueClass, b::ResidueClass) = ResidueClass(a.mask | b.mask)
+
+"""
+    is_subset(a::ResidueClass, b::ResidueClass) -> Bool
+
+Return `true` when every residue in `a` is also in `b`.
+"""
+@inline is_subset(a::ResidueClass, b::ResidueClass) = iszero(a.mask & ~b.mask)
+
+"""
+    is_wildcard(a::ResidueClass, opts::ComparisonOptions) -> Bool
+
+Return `true` when the residue class spans the full selected alphabet.
+"""
+@inline is_wildcard(a::ResidueClass, opts::ComparisonOptions) = a.mask == opts.alphabet_mask
+
+"""
+    is_fixed(a::ResidueClass) -> Bool
+
+Return `true` when the residue class contains exactly one residue.
+"""
+@inline is_fixed(a::ResidueClass) = count_ones(a.mask) == 1
 
 @enum _RelationshipType::UInt8 begin
     _REL_EXACT = 0

@@ -2,7 +2,7 @@
 
 Clean-room, unofficial Julia implementation of the motif–motif comparison strategy 
 described by Edwards, Davey and Shields (Bioinformatics 24(10):1307–1309, 2008). It 
-supports the comparison of protein and DNA motifs, represented as regular 
+supports the comparison of protein, DNA and RNA motifs, represented as regular 
 expressions.
 
 ## API
@@ -12,20 +12,39 @@ expressions.
 - `compare(motifs::AbstractVector{<:AbstractString}, db::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
 - `compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
 - `normalize_motif(motif::AbstractString; alphabet = :protein)::String`
-- `write_results_tsv(path, motifs, db, results)`
+- `to_column_table(result_or_results)::NamedTuple`
 
 ## Minimal example
 
 ```julia
 using CompariMotif
+using DataFrames
 
 motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]", "RxLE"]
 options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 results = compare(motifs, options)
 
 results[3, 4]  # single pair summary
-write_results_tsv("comparimotif_results.tsv", motifs, motifs, results)  # save full matrix
+table = to_column_table(results)
+df = DataFrame(table)
 ```
+
+`to_column_table` output can also be written with `CSV.write("comparimotif_results.tsv", table)`.
+
+## Supported motif syntax
+
+- Fixed residues from the selected alphabet:
+  - protein (`alphabet=:protein`, default): `ARNDCQEGHILKMFPSTWYV`
+  - DNA (`alphabet=:dna`): `ACGT`
+  - RNA (`alphabet=:rna`): `ACGU`
+- Wildcards: `x`, `X`, and `.`
+- Character classes: `[KR]`
+- Negated classes: `[^P]` (complement within selected alphabet)
+- Anchors: `^` and `$`
+- Repeat quantifiers: `{n}`, `{m,n}`, `(n)`, `(m,n)`
+- Whitespace is ignored inside motifs.
+
+Unsupported syntax includes general regex alternation/group constructs such as `(A|B)`.
 
 ## Official implementation
 
@@ -38,7 +57,7 @@ This package implements the paper-defined motif comparison core, but it does not
 aim to replicate the full SLiMSuite application surface. In particular:
 
 - no standalone CLI interface or SLiMSuite pipeline integration;
-- no raw `.tdt` compatibility/output mode (deterministic TSV writer is provided);
+- no raw `.tdt` compatibility/output mode (use `to_column_table` for tabular outputs);
 - no `Name*`/`Desc*` metadata fields in API results or fixtures (regex motifs only);
 - no XGMML/network export outputs.
 

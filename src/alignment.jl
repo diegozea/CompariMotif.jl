@@ -1,11 +1,12 @@
-# Build one output symbol for the overlap pattern column.
-# Upper/lower case and class rendering mirrors relation semantics:
-# - exact keeps uppercase specificity when possible,
-# - non-exact or mismatch uses lowercase/union to emphasize ambiguity.
+"""
+    _match_symbol(qpos, spos, intersection, relation, mismatch, options) -> String
+
+Render one output symbol for the overlap pattern.
+"""
 function _match_symbol(
         qpos::_Position,
         spos::_Position,
-        intersection::UInt32,
+        intersection::ResidueMask,
         relation::_RelationshipType,
         mismatch::Bool,
         options::ComparisonOptions
@@ -22,9 +23,12 @@ function _match_symbol(
         # Preserve compact wildcard representation in overlap output.
         return "x"
     end
+
+    qclass = ResidueClass(qpos.mask)
+    sclass = ResidueClass(spos.mask)
     if mismatch
         # Mismatch still contributes a descriptive symbol in the matched pattern.
-        union_mask = qpos.mask | spos.mask
+        union_mask = unionclass(qclass, sclass).mask
         return _mask_to_symbol(union_mask, options; as_lowercase = true, wildcard_symbol = "x")
     end
     if relation == _REL_EXACT
@@ -41,26 +45,33 @@ function _match_symbol(
     elseif swild
         return _mask_to_symbol(qpos.mask, options; as_lowercase = true, wildcard_symbol = "x")
     end
-    union_mask = qpos.mask | spos.mask
+    union_mask = unionclass(qclass, sclass).mask
     return _mask_to_symbol(union_mask, options; as_lowercase = true, wildcard_symbol = "x")
 end
 
+"""
+    _compare_positions(qpos, spos, options)
+
+Compare one query/search position pair and return matching diagnostics.
+"""
 function _compare_positions(qpos::_Position, spos::_Position, options::ComparisonOptions)
     # Anchors are valid only against the same anchor type.
     if qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
         if qpos.kind == spos.kind
             return (hard_mismatch = false, mismatch = false,
-                relation = _REL_EXACT, intersection = UInt32(0), ic = 1.0,
+                relation = _REL_EXACT, intersection = ResidueMask(0), ic = 1.0,
                 contributes_position = true, exact_fixed = false)
         end
         return (hard_mismatch = true, mismatch = true,
-            relation = _REL_COMPLEX, intersection = UInt32(0), ic = 0.0,
+            relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
             contributes_position = false, exact_fixed = false)
     end
 
+    qclass = ResidueClass(qpos.mask)
+    sclass = ResidueClass(spos.mask)
     # Residue match operates on mask set intersection.
-    intersection = qpos.mask & spos.mask
-    if intersection == 0
+    intersection = qclass.mask & sclass.mask
+    if !overlaps(qclass, sclass)
         # No shared residue -> mismatch position (allowed only if mismatch budget allows).
         return (hard_mismatch = false, mismatch = true,
             relation = _REL_COMPLEX, intersection = intersection, ic = 0.0,
@@ -68,11 +79,11 @@ function _compare_positions(qpos::_Position, spos::_Position, options::Compariso
     end
 
     # Determine relationship by set equality/subset/superset/partial overlap.
-    relation = if qpos.mask == spos.mask
+    relation = if qclass.mask == sclass.mask
         _REL_EXACT
-    elseif (qpos.mask & ~spos.mask) == 0
+    elseif is_subset(qclass, sclass)
         _REL_VARIANT
-    elseif (spos.mask & ~qpos.mask) == 0
+    elseif is_subset(sclass, qclass)
         _REL_DEGENERATE
     elseif options.allow_ambiguous_overlap
         _REL_COMPLEX
@@ -99,17 +110,32 @@ function _compare_positions(qpos::_Position, spos::_Position, options::Compariso
     )
 end
 
+"""
+    _query_fixed_required(mode::MatchFixMode) -> Bool
+
+Return `true` when query fixed residues must match exactly.
+"""
 function _query_fixed_required(mode::MatchFixMode)
     # Query fixed constraints apply in QueryFixed and BothFixed modes.
     mode == MatchFixQueryFixed || mode == MatchFixBothFixed
 end
+
+"""
+    _search_fixed_required(mode::MatchFixMode) -> Bool
+
+Return `true` when search fixed residues must match exactly.
+"""
 function _search_fixed_required(mode::MatchFixMode)
     # Search fixed constraints apply in SearchFixed and BothFixed modes.
     mode == MatchFixSearchFixed || mode == MatchFixBothFixed
 end
 
-# Evaluate one concrete shift between two expanded motif variants.
-# Returns `_Candidate` when all thresholds pass, otherwise `nothing`.
+"""
+    _evaluate_alignment(query_variant, search_variant, shift, options)
+
+Evaluate one concrete shift between two expanded motif variants.
+Returns `_Candidate` when all thresholds pass, otherwise `nothing`.
+"""
 function _evaluate_alignment(
         query_variant::_MotifVariant,
         search_variant::_MotifVariant,
@@ -214,10 +240,12 @@ function _evaluate_alignment(
     )
 end
 
-# Deterministic candidate ordering:
-# 1) higher match_ic,
-# 2) more matched positions,
-# 3) more exact fixed matches.
+"""
+    _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate}) -> Bool
+
+Apply deterministic candidate ordering:
+1) higher `match_ic`, 2) more matched positions, 3) more exact fixed matches.
+"""
 function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     best === nothing && return true
     if candidate.match_ic != best.match_ic
@@ -232,6 +260,11 @@ function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     return false
 end
 
+"""
+    _compare_parsed(parsed_query, parsed_search, options) -> ComparisonResult
+
+Compare two already-parsed motifs.
+"""
 function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif, options::ComparisonOptions)
     # Repeat ranges are expanded first; alignment runs over concrete variants.
     query_variants = _expand_variants(parsed_query, options)
@@ -272,10 +305,6 @@ function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif
         query_relationship = _relationship_word(
             best.query_relationship_type, best.query_relationship_length),
         search_relationship = _relationship_word(
-            best.search_relationship_type, best.search_relationship_length),
-        query_relationship_code = _relationship_code(
-            best.query_relationship_type, best.query_relationship_length),
-        search_relationship_code = _relationship_code(
             best.search_relationship_type, best.search_relationship_length),
         matched_pattern = best.matched_pattern,
         matched_positions = best.matched_positions,

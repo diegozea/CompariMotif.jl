@@ -19,7 +19,7 @@ using TestItems
     @test result.score ≈ 1.669 atol = 1e-3
 end
 
-@testitem "paper Table 1 relationship codes" begin
+@testitem "paper Table 1 relationship words" begin
     using Test
     using CompariMotif
 
@@ -27,27 +27,27 @@ end
 
     # Edwards et al. (2008), Table 1 (page 1308)
     cases = [
-        ("RKLI", "RKLI", "e-m"),
-        ("ARKLI", "RKLI", "e-p"),
-        ("RKLI", "ARKLI", "e-s"),
-        ("ARKLI", "RKLIT", "e-o"),
-        ("RKLI", "R[KR]L[IV]", "v-m"),
-        ("ARKLI", "R[KR]L[IV]", "v-p"),
-        ("RKLI", "AR[KR]L[IV]", "v-s"),
-        ("ARKLI", "R[KR]L[IV]T", "v-o"),
-        ("R[KR]L[IV]", "RKLI", "d-m"),
-        ("AR[KR]L[IV]", "RKLI", "d-p"),
-        ("R[KR]L[IV]", "ARKLI", "d-s"),
-        ("AR[KR]L[IV]", "RKLIT", "d-o"),
-        ("[KR]L[IMV]", "[RKQ]L[IV]", "c-m"),
-        ("A[KR]L[IMV]", "[RKQ]L[IV]", "c-p"),
-        ("[KR]L[IMV]", "A[RKQ]L[IV]", "c-s"),
-        ("A[KR]L[IMV]", "[RKQ]L[IV]T", "c-o")
+        ("RKLI", "RKLI", "Exact Match"),
+        ("ARKLI", "RKLI", "Exact Parent"),
+        ("RKLI", "ARKLI", "Exact Subsequence"),
+        ("ARKLI", "RKLIT", "Exact Overlap"),
+        ("RKLI", "R[KR]L[IV]", "Variant Match"),
+        ("ARKLI", "R[KR]L[IV]", "Variant Parent"),
+        ("RKLI", "AR[KR]L[IV]", "Variant Subsequence"),
+        ("ARKLI", "R[KR]L[IV]T", "Variant Overlap"),
+        ("R[KR]L[IV]", "RKLI", "Degenerate Match"),
+        ("AR[KR]L[IV]", "RKLI", "Degenerate Parent"),
+        ("R[KR]L[IV]", "ARKLI", "Degenerate Subsequence"),
+        ("AR[KR]L[IV]", "RKLIT", "Degenerate Overlap"),
+        ("[KR]L[IMV]", "[RKQ]L[IV]", "Complex Match"),
+        ("A[KR]L[IMV]", "[RKQ]L[IV]", "Complex Parent"),
+        ("[KR]L[IMV]", "A[RKQ]L[IV]", "Complex Subsequence"),
+        ("A[KR]L[IMV]", "[RKQ]L[IV]T", "Complex Overlap")
     ]
 
-    for (query, search, code) in cases
+    for (query, search, relationship) in cases
         result = compare(query, search, options)
         @test result.matched
-        @test result.query_relationship_code == code
+        @test result.query_relationship == relationship
     end
 end

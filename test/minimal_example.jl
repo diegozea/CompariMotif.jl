@@ -13,7 +13,7 @@ using TestItems
     @test results[3, 4].query_relationship == "Degenerate Parent"
     @test results[3, 4].matched_positions == 2
 
-    outfile = joinpath(mktempdir(), "comparimotif_results.tsv")
-    write_results_tsv(outfile, motifs, motifs, results)
-    @test isfile(outfile)
+    table = to_column_table(results)
+    @test length(table.query_index) == 16
+    @test :query_relationship in keys(table)
 end
