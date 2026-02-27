@@ -4,7 +4,11 @@
 Parse and canonicalize a motif expression into a deterministic representation.
 Supported syntax includes fixed residues from the selected alphabet, bracket
 classes (including negation), `x`/`X`/`.` wildcards, `^`/`\$` termini, and
-`{n}`/`{m,n}` (or `(n)`/`(m,n)`) repeat quantifiers.
+`{n}`/`{m,n}` repeat quantifiers. Grouping with `(...)` and alternation with
+`|` are also supported.
+
+Wildcard tokens `x`, `X`, and `.` are equivalent and each means "any residue"
+in the selected alphabet (`:protein`, `:dna`, or `:rna`).
 
 # Examples
 ```jldoctest

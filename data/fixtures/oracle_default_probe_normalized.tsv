@@ -1,0 +1,22 @@
+# Generated via black-box oracle command (see AGENT_NOTES.md)
+# Date: 2026-02-27T00:00:00
+# Source: CompariMotif oracle defaults (black-box)
+Motif1	Motif2	Sim1	Sim2	Match	MatchPos	MatchIC	NormIC	CoreIC	Score	Info1	Info2
+A.L	AKL	Degenerate Match	Variant Match	AkL	2	2.000	1.000	0.667	2.000	2.00	3.00
+A.L	AQL	Degenerate Match	Variant Match	AqL	2	2.000	1.000	0.667	2.000	2.00	3.00
+AK	AKL	Exact Subsequence	Exact Parent	AK	2	2.000	1.000	1.000	2.000	2.00	3.00
+AK	A[KR]	Variant Match	Degenerate Match	A[kr]	2	1.769	1.000	0.884	2.000	2.00	1.77
+AKL	A.L	Variant Match	Degenerate Match	AkL	2	2.000	1.000	0.667	2.000	3.00	2.00
+AKL	AK	Exact Parent	Exact Subsequence	AK	2	2.000	1.000	1.000	2.000	3.00	2.00
+AKL	A[KR]	Variant Parent	Degenerate Subsequence	A[kr]	2	1.769	1.000	0.884	2.000	3.00	1.77
+AQ	AQL	Exact Subsequence	Exact Parent	AQ	2	2.000	1.000	1.000	2.000	2.00	3.00
+AQ	A[RQ]	Variant Match	Degenerate Match	A[qr]	2	1.769	1.000	0.884	2.000	2.00	1.77
+AQL	A.L	Variant Match	Degenerate Match	AqL	2	2.000	1.000	0.667	2.000	3.00	2.00
+AQL	AQ	Exact Parent	Exact Subsequence	AQ	2	2.000	1.000	1.000	2.000	3.00	2.00
+AQL	A[RQ]	Variant Parent	Degenerate Subsequence	A[qr]	2	1.769	1.000	0.884	2.000	3.00	1.77
+A[KR]	AK	Degenerate Match	Variant Match	A[kr]	2	1.769	1.000	0.884	2.000	1.77	2.00
+A[KR]	AKL	Degenerate Subsequence	Variant Parent	A[kr]	2	1.769	1.000	0.884	2.000	1.77	3.00
+A[KR]	A[RQ]	Ugly Match	Ugly Match	A[kqr]	2	1.633	0.923	0.923	1.847	1.77	1.77
+A[RQ]	AQ	Degenerate Match	Variant Match	A[qr]	2	1.769	1.000	0.884	2.000	1.77	2.00
+A[RQ]	AQL	Degenerate Subsequence	Variant Parent	A[qr]	2	1.769	1.000	0.884	2.000	1.77	3.00
+A[RQ]	A[KR]	Ugly Match	Ugly Match	A[kqr]	2	1.633	0.923	0.923	1.847	1.77	1.77

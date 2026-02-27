@@ -100,11 +100,13 @@ end
 # Parsed motif keeps:
 # - original user input,
 # - normalized canonical text,
-# - token sequence with possible repeat ranges.
+# - token sequence with possible repeat ranges,
+# - branch alternatives for `(motif1)|(motif2)`-style motifs.
 struct _ParsedMotif
     original::String
     normalized::String
     tokens::Vector{_Token}
+    alternatives::Vector{Vector{_Token}}
 end
 
 # Expanded motif variant after resolving repeat ranges.

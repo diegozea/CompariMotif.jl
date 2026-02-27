@@ -73,16 +73,15 @@ julia> table = to_column_table(compare(motifs, options));
 
 julia> df = DataFrame(table);
 
-julia> size(df, 1)
-4
-
-julia> "query_index" in names(df) && "search_index" in names(df)
-true
-```
-
-```julia
-using CSV
-CSV.write("comparimotif_results.tsv", to_column_table(compare(motifs, options)))
+julia> show(select(df, [:query_index, :search_index, :query, :search, :query_relationship]), allrows = true, allcols = true, truncate = 0)
+4×5 DataFrame
+ Row │ query_index  search_index  query       search      query_relationship
+     │ Int64        Int64         String      String      String
+─────┼───────────────────────────────────────────────────────────────────────
+   1 │           1             1  RKLI        RKLI        Exact Match
+   2 │           1             2  RKLI        R[KR]L[IV]  Variant Match
+   3 │           2             1  R[KR]L[IV]  RKLI        Degenerate Match
+   4 │           2             2  R[KR]L[IV]  R[KR]L[IV]  Exact Match
 ```
 
 $(_DOC_COMPARE_REF)

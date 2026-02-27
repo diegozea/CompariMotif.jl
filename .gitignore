@@ -3,12 +3,19 @@
 *.jl.mem
 /Manifest*.toml
 /docs/Manifest*.toml
+/test/Manifest*.toml
 /docs/build/
+
+# VS Code
+.vscode/
 
 # DEV
 AGENTS.md
 AGENT_NOTES.md
 /paper
 
-# VS Code
-.vscode/
+# Codex
+.codex*
+
+# Logs
+*.log

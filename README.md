@@ -31,20 +31,28 @@ df = DataFrame(table)
 
 `to_column_table` output can also be written with `CSV.write("comparimotif_results.tsv", table)`.
 
-## Supported motif syntax
+## Allowed regex symbols and syntax
+
+Motif parsing supports a controlled regex-like subset.
 
 - Fixed residues from the selected alphabet:
   - protein (`alphabet=:protein`, default): `ARNDCQEGHILKMFPSTWYV`
   - DNA (`alphabet=:dna`): `ACGT`
   - RNA (`alphabet=:rna`): `ACGU`
-- Wildcards: `x`, `X`, and `.`
-- Character classes: `[KR]`
-- Negated classes: `[^P]` (complement within selected alphabet)
-- Anchors: `^` and `$`
-- Repeat quantifiers: `{n}`, `{m,n}`, `(n)`, `(m,n)`
-- Whitespace is ignored inside motifs.
-
-Unsupported syntax includes general regex alternation/group constructs such as `(A|B)`.
+- Wildcards:
+  - `x`, `X`, and `.` are equivalent and mean "any residue in the selected alphabet".
+- Character classes:
+  - `[KR]` includes listed residues.
+  - `[^P]` is negation within the selected alphabet only.
+- Anchors:
+  - `^` and `$` to idicate N- and C-terminus for protein motifs, or 5' and 3' ends for 
+    nucleic acid motifs.
+- Repeat quantifiers:
+  - `{n}`, `{m,n}`.
+- Grouping and alternation:
+  - `(...)` for grouping and `|` for alternatives (for example `A(K|Q)LI`).
+- Whitespace:
+  - ignored inside motifs.
 
 ## Official implementation
 
@@ -67,6 +75,17 @@ Oracle fixtures, i.e. expected results for black-box tests, are committed under
 `data/fixtures/` and tests do not call the CompariMotif code directly. Only normalized 
 TSV fixtures are committed rather than the raw `.tdt` output. To regenerate fixtures 
 see the `README.md` in `data/fixtures/`.
+
+### Default options parity
+
+Compared against the upstream CompariMotif oracle as a black-box executable
+(without reading source code), package defaults match:
+
+- `min_shared_positions = 2` (`minshare=2`)
+- `normalized_ic_cutoff = 0.5` (`normcut=0.5`)
+- `matchfix = MatchFixNone` (`matchfix=0`)
+- `mismatches = 0`
+- `allow_ambiguous_overlap = true` (`overlaps=T`)
 
 ### License hygiene
 

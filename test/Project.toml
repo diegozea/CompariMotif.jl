@@ -1,4 +1,5 @@
 [deps]
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -8,6 +9,7 @@ TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [compat]
 julia = "1.10"
+CSV = "0.10"
 DataFrames = "1"
 Documenter = "1"
 TestItemRunner = "1"

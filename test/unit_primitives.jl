@@ -6,7 +6,44 @@ using TestItems
 
     @test normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
     @test normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]x"
-    @test normalize_motif("x(1,2)") == "x{1,2}"
+    @test_throws ArgumentError normalize_motif("x(1,2)")
+end
+
+@testitem "alternation syntax" begin
+    using Test
+    using CompariMotif
+
+    @test normalize_motif("(rkli)") == "RKLI"
+    @test normalize_motif("(rkli)|(r[kr]l[iv])") == "(RKLI)|(R[RK]L[IV])"
+    @test normalize_motif("RKLI|R[KR]L[IV]") == "(RKLI)|(R[RK]L[IV])"
+    @test normalize_motif("A(K|Q)LI") == "(AKLI)|(AQLI)"
+    @test normalize_motif("(K|Q)") == "(K)|(Q)"
+    @test normalize_motif("R(KL)I") == "RKLI"
+
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    result = compare("(RKLI)|(AQLI)", "AQLI", options)
+    @test result.matched
+    @test result.query_relationship == "Exact Match"
+    @test result.normalized_query == "(RKLI)|(AQLI)"
+
+    class_equivalence = compare("(K|Q)", "[KQ]", options)
+    @test class_equivalence.matched
+    @test class_equivalence.query_relationship == "Variant Match"
+    @test class_equivalence.search_relationship == "Degenerate Match"
+
+    redundant_grouping = compare("R(KL)I", "RKLI", options)
+    @test redundant_grouping.matched
+    @test redundant_grouping.query_relationship == "Exact Match"
+    @test redundant_grouping.normalized_query == "RKLI"
+end
+
+@testitem "wildcard token equivalence" begin
+    using Test
+    using CompariMotif
+
+    @test normalize_motif("A.Xx"; alphabet = :protein) == "Axxx"
+    @test normalize_motif("A.Xx"; alphabet = :dna) == "Axxx"
+    @test normalize_motif("A.Xx"; alphabet = :rna) == "Axxx"
 end
 
 @testitem "single pair relationship categories" begin
@@ -68,6 +105,34 @@ end
     mm1 = compare("AK", "AQ", mm1_options)
     @test mm1.matched
     @test mm1.matched_positions == 1
+end
+
+@testitem "default option semantics" begin
+    using Test
+    using CompariMotif
+
+    defaults = ComparisonOptions()
+
+    @test !compare("A.", "AT", defaults).matched
+    @test compare("A.", "AT", ComparisonOptions(; min_shared_positions = 1)).matched
+
+    @test !compare("QRSTAA", "AAMNPQ", defaults).matched
+    @test compare("QRSTAA", "AAMNPQ", ComparisonOptions(; normalized_ic_cutoff = 0.0)).matched
+
+    @test compare("AKL", "A.L", defaults).matched
+    @test !compare("AKL", "A.L", ComparisonOptions(; matchfix = MatchFixQueryFixed)).matched
+
+    @test !compare("AKL", "AQL", defaults).matched
+    @test compare("AKL", "AQL", ComparisonOptions(; mismatches = 1)).matched
+
+    overlap_default = compare("A[KR]", "A[RQ]", defaults)
+    @test overlap_default.matched
+    @test overlap_default.query_relationship == "Complex Match"
+    @test !compare(
+        "A[KR]",
+        "A[RQ]",
+        ComparisonOptions(; allow_ambiguous_overlap = false)
+    ).matched
 end
 
 @testitem "matrix APIs" begin
@@ -152,6 +217,27 @@ end
     @test length(mat_table.query_index) == 4
     @test mat_table.query_index == [1, 1, 2, 2]
     @test mat_table.search_index == [1, 2, 1, 2]
+end
+
+@testitem "to_column_table CSV export" begin
+    using Test
+    using CSV
+    using CompariMotif
+
+    motifs = ["RKLI", "R[KR]L[IV]"]
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    table = to_column_table(compare(motifs, options))
+
+    mktemp() do path, io
+        close(io)
+        CSV.write(path, table)
+        @test isfile(path)
+        @test filesize(path) > 0
+
+        rows = collect(CSV.File(path))
+        @test length(rows) == 4
+        @test rows[2].query_relationship == "Variant Match"
+    end
 end
 
 @testitem "RNA alphabet mode" begin

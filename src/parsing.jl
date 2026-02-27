@@ -51,19 +51,17 @@ function _parse_repeat_quantifier(text::AbstractString, i::Int)
         return (1, 1, i)
     end
     opener = text[i]
-    # Accept both brace and parenthesis forms for compatibility.
-    if opener != '{' && opener != '('
+    if opener != '{'
         return (1, 1, i)
     end
-    closer = opener == '{' ? '}' : ')'
-    close_idx = findnext(==(closer), text, nextind(text, i))
+    close_idx = findnext(==('}'), text, nextind(text, i))
     close_idx === nothing &&
         throw(ArgumentError("Unclosed repeat quantifier in motif: $text"))
     raw = text[nextind(text, i):prevind(text, close_idx)]
     parts = split(raw, ',')
     # Supported forms:
-    # - "{n}" or "(n)" -> exact repeat
-    # - "{m,n}" or "(m,n)" -> range repeat
+    # - "{n}" -> exact repeat
+    # - "{m,n}" -> range repeat
     repeat_min,
     repeat_max = if length(parts) == 1
         n = parse(Int, strip(parts[1]))
@@ -184,26 +182,117 @@ end
 # The parser keeps syntax handling deterministic:
 # - fixed residues, wildcard tokens (`x`, `X`, `.`), classes, negated classes,
 #   and termini are parsed into `_Position` tokens;
-# - optional quantifiers `{n}`, `{m,n}`, `(n)`, `(m,n)` are attached to the
-#   preceding token;
+# - optional quantifiers `{n}` and `{m,n}` are attached to the preceding token;
+# - grouping and alternation (`(...)`, `|`) are expanded into independent branch
+#   token lists;
 # - canonical text is rebuilt from masks and quantifiers to normalize input.
 
-"""
-    _parse_motif(motif::AbstractString, options::ComparisonOptions) -> _ParsedMotif
+function _normalized_from_tokens(tokens::Vector{_Token})
+    return join(getfield.(tokens, :canonical))
+end
 
-Parse one motif string into canonical internal representation.
-"""
-function _parse_motif(motif::AbstractString, options::ComparisonOptions)
-    stripped = strip(motif)
-    isempty(stripped) && throw(ArgumentError("Motif cannot be empty."))
+function _skip_ws(text::AbstractString, i::Int)
+    while i <= lastindex(text) && isspace(text[i])
+        i = nextind(text, i)
+    end
+    return i
+end
 
+function _combine_concat(lhs::Vector{String}, rhs::Vector{String})
+    out = String[]
+    for left in lhs, right in rhs
+
+        push!(out, left * right)
+    end
+    return out
+end
+
+function _parse_expr_alternatives(text::AbstractString, i::Int)
+    terms = String[]
+    seq = [""]
+
+    while true
+        i = _skip_ws(text, i)
+        if i > lastindex(text) || text[i] == ')'
+            append!(terms, seq)
+            return terms, i
+        end
+        if text[i] == '|'
+            isempty(seq) && throw(ArgumentError("Empty alternation branch in motif: $text"))
+            append!(terms, seq)
+            seq = [""]
+            i = nextind(text, i)
+            continue
+        end
+
+        atom_alts, i = _parse_atom_alternatives(text, i)
+        seq = _combine_concat(seq, atom_alts)
+    end
+end
+
+function _extract_quantifier(text::AbstractString, i::Int)
+    i = _skip_ws(text, i)
+    if i > lastindex(text) || text[i] != '{'
+        return "", i
+    end
+    _, _, next_i = _parse_repeat_quantifier(text, i)
+    return String(text[i:prevind(text, next_i)]), next_i
+end
+
+function _parse_atom_alternatives(text::AbstractString, i::Int)
+    char = text[i]
+
+    if char == '['
+        close_idx = findnext(==(']'), text, nextind(text, i))
+        close_idx === nothing &&
+            throw(ArgumentError("Unclosed character class in motif: $text"))
+        atom = String(text[i:close_idx])
+        quant, next_i = _extract_quantifier(text, nextind(text, close_idx))
+        return [atom * quant], next_i
+    end
+    if char == '('
+        inner_alts, next_i = _parse_expr_alternatives(text, nextind(text, i))
+        next_i > lastindex(text) &&
+            throw(ArgumentError("Unclosed grouping parenthesis in motif: $text"))
+        text[next_i] == ')' || throw(ArgumentError("Malformed grouping in motif: $text"))
+        quant, tail_i = _extract_quantifier(text, nextind(text, next_i))
+        if !isempty(quant)
+            throw(ArgumentError("Repeat quantifiers on grouped expressions are not supported: $text"))
+        end
+        return inner_alts, tail_i
+    end
+    if char == ')' || char == '|'
+        throw(ArgumentError("Unexpected token '$char' in motif: $text"))
+    end
+
+    quant, next_i = _extract_quantifier(text, nextind(text, i))
+    return [string(char) * quant], next_i
+end
+
+function _expand_grouped_motif(text::AbstractString)
+    alts, next_i = _parse_expr_alternatives(text, firstindex(text))
+    next_i = _skip_ws(text, next_i)
+    next_i <= lastindex(text) &&
+        throw(ArgumentError("Unexpected trailing content in motif: $text"))
+
+    cleaned = String[]
+    for alt in alts
+        stripped = strip(alt)
+        isempty(stripped) &&
+            throw(ArgumentError("Empty alternation branch in motif: $text"))
+        push!(cleaned, stripped)
+    end
+    return cleaned
+end
+
+function _parse_linear_tokens(motif::AbstractString, options::ComparisonOptions)
     tokens = _Token[]
-    i = firstindex(stripped)
-    while i <= lastindex(stripped)
-        char = stripped[i]
+    i = firstindex(motif)
+    while i <= lastindex(motif)
+        char = motif[i]
         if isspace(char)
             # Ignore whitespace so users can provide readable motifs.
-            i = nextind(stripped, i)
+            i = nextind(motif, i)
             continue
         end
 
@@ -217,10 +306,10 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
             _Position(_RESIDUE, options.alphabet_mask)
         elseif char == '['
             # Class token includes everything until the first closing bracket.
-            close_idx = findnext(==(']'), stripped, nextind(stripped, i))
+            close_idx = findnext(==(']'), motif, nextind(motif, i))
             close_idx === nothing &&
                 throw(ArgumentError("Unclosed character class in motif: $motif"))
-            class_raw = stripped[nextind(stripped, i):prevind(stripped, close_idx)]
+            class_raw = motif[nextind(motif, i):prevind(motif, close_idx)]
             mask = _class_mask(class_raw, options)
             i = close_idx
             _Position(_RESIDUE, mask)
@@ -229,7 +318,7 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
         end
 
         repeat_min, repeat_max,
-        next_i = _parse_repeat_quantifier(stripped, nextind(stripped, i))
+        next_i = _parse_repeat_quantifier(motif, nextind(motif, i))
         if position.kind !== _RESIDUE && (repeat_min != 1 || repeat_max != 1)
             # Anchors are single logical positions, never repeatable.
             throw(ArgumentError("Repeat quantifiers are not valid for termini in motif: $motif"))
@@ -256,8 +345,32 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
 
     isempty(tokens) &&
         throw(ArgumentError("Motif produced no positions after parsing: $motif"))
-    normalized = join(getfield.(tokens, :canonical))
-    return _ParsedMotif(String(motif), normalized, tokens)
+    return tokens
+end
+
+"""
+    _parse_motif(motif::AbstractString, options::ComparisonOptions) -> _ParsedMotif
+
+Parse one motif string into canonical internal representation.
+"""
+function _parse_motif(motif::AbstractString, options::ComparisonOptions)
+    stripped = strip(motif)
+    isempty(stripped) && throw(ArgumentError("Motif cannot be empty."))
+
+    branches = _expand_grouped_motif(stripped)
+    alternatives = Vector{_Token}[]
+    normalized_branches = String[]
+    for branch in branches
+        branch_tokens = _parse_linear_tokens(branch, options)
+        push!(alternatives, branch_tokens)
+        push!(normalized_branches, _normalized_from_tokens(branch_tokens))
+    end
+    normalized = if length(normalized_branches) == 1
+        first(normalized_branches)
+    else
+        join(["(" * branch * ")" for branch in normalized_branches], "|")
+    end
+    return _ParsedMotif(String(motif), normalized, first(alternatives), alternatives)
 end
 
 """
@@ -280,7 +393,10 @@ end
 Expand ranged-repeat motifs into concrete variant sequences.
 """
 function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
-    nvariants = _variant_count(parsed.tokens)
+    nvariants = big(0)
+    for tokens in parsed.alternatives
+        nvariants += _variant_count(tokens)
+    end
     if nvariants > options.max_variants
         throw(ArgumentError("Motif $(parsed.original) expands to $nvariants variants, above max_variants=$(options.max_variants)."))
     end
@@ -290,8 +406,8 @@ function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
     positions = _Position[]
     symbols = String[]
 
-    function rec(ti::Int)
-        if ti > length(parsed.tokens)
+    function rec(tokens::Vector{_Token}, ti::Int)
+        if ti > length(tokens)
             isempty(positions) && return
             # Compute total motif information from concrete expanded positions.
             info = 0.0
@@ -301,7 +417,7 @@ function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
             push!(variants, _MotifVariant(copy(positions), join(symbols), info))
             return
         end
-        token = parsed.tokens[ti]
+        token = tokens[ti]
         token_symbol = _canonical_token(token.position, options)
         for repeat in token.min_repeat:token.max_repeat
             # Append repeated token positions for this branch, recurse, then backtrack.
@@ -311,13 +427,18 @@ function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
                 push!(symbols, token_symbol)
                 append_count += 1
             end
-            rec(ti + 1)
+            rec(tokens, ti + 1)
             for _ in 1:append_count
                 pop!(positions)
                 pop!(symbols)
             end
         end
     end
-    rec(1)
+
+    for tokens in parsed.alternatives
+        empty!(positions)
+        empty!(symbols)
+        rec(tokens, 1)
+    end
     return variants
 end

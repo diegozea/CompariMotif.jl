@@ -1,0 +1,11 @@
+# Motif set used to validate grouping/alternation behavior against oracle.
+(RKLI)
+(RKLI)|(AQLI)
+RKLI|AQLI
+A(K|Q)LI
+[KQ]
+(K|Q)
+R(KL)I
+RKLI
+AQLI
+AKLI
