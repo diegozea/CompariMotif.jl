@@ -1,6 +1,6 @@
 name = "CompariMotif"
 uuid = "aecef331-8c7a-44c4-b913-ba8debb6e116"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Diego Javier Zea <diegozea@gmail.com> and contributors"]
 
 [deps]
