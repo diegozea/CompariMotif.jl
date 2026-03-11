@@ -39,6 +39,13 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_alternation_probe_normalized.tsv"),
         columns = ALTERNATION_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"]
+    ),
+    (
+        name = "exact_prefilter",
+        motif_set = joinpath(FIXTURES_DIR, "exact_prefilter_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_exact_prefilter_probe_normalized.tsv"),
+        columns = ALTERNATION_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"]
     )
 )
 

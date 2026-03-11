@@ -8,9 +8,11 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `regression_motifs.tsv`: input motif set used for fixture generation (`#` comments allowed; one motif regex per non-comment line).
 - `default_probe_motifs.tsv`: discriminative motif set for default-option parity checks.
 - `alternation_probe_motifs.tsv`: motif set with grouping/alternation syntax for oracle parity checks.
+- `exact_prefilter_probe_motifs.tsv`: motif set targeting exact-match, exact-subsequence, and exact-overlap pre-pass parity checks.
 - `oracle_regression_normalized.tsv`: normalized, deterministic oracle output used by tests.
 - `oracle_default_probe_normalized.tsv`: normalized oracle-default output used by tests.
 - `oracle_alternation_probe_normalized.tsv`: normalized oracle output for grouping/alternation tests.
+- `oracle_exact_prefilter_probe_normalized.tsv`: normalized oracle output for exact-match pre-pass parity tests.
 
 ## Prerequisites
 
@@ -36,6 +38,7 @@ This rewrites all normalized fixture outputs:
 oracle_regression_normalized.tsv
 oracle_default_probe_normalized.tsv
 oracle_alternation_probe_normalized.tsv
+oracle_exact_prefilter_probe_normalized.tsv
 ```
 
 To regenerate one fixture set only:
@@ -45,6 +48,7 @@ export SLiMSuite_PATH=/path/to/SLiMSuite
 julia --project=. data/fixtures/generate_oracle_fixture.jl regression
 julia --project=. data/fixtures/generate_oracle_fixture.jl defaults
 julia --project=. data/fixtures/generate_oracle_fixture.jl alternation
+julia --project=. data/fixtures/generate_oracle_fixture.jl exact_prefilter
 ```
 
 ### Oracle Default Probe Fixture

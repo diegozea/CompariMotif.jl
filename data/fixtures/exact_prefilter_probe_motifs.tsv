@@ -1,0 +1,13 @@
+# Motif set used to validate exact-match pre-pass parity against the oracle.
+RKLI
+ARKLI
+RKLIT
+ARKLIT
+R|RKLI
+R[KR]L[IV]
+R
+^RKLI
+RKLI$
+^ARKLI
+RKLIT$
+R(KL)I
