@@ -33,6 +33,24 @@ result = compare("RKLI", "R[KR]L[IV]", options)
 You can find more advanced examples of how to use this package in the
 [FAQ / How-To](@ref) section of the documentation.
 
+## Non-Uniform Residue Frequencies
+
+By default, information content uses a uniform residue frequency distribution.
+To score motifs against a custom background model, pass
+`residue_frequencies = Dict{Char,Float64}(...)` when constructing
+[`ComparisonOptions`](@ref).
+
+```@repl external_api_examples
+dna_freqs = Dict('A' => 0.3, 'C' => 0.2, 'G' => 0.2, 'T' => 0.3)
+weighted = ComparisonOptions(;
+    alphabet = DNAAlphabet(),
+    residue_frequencies = dna_freqs,
+    min_shared_positions = 1,
+    normalized_ic_cutoff = 0.0,
+)
+compare("ATG", "[AGT]TG", weighted)
+```
+
 ## Matrix Comparisons
 
 When you have many motifs, you can compare the entire collection in a single call. The 

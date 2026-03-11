@@ -31,6 +31,24 @@ df = DataFrame(table)
 
 `to_column_table` output can also be written with `CSV.write("comparimotif_results.tsv", table)`.
 
+## Non-uniform residue frequencies
+
+By default, CompariMotif uses a uniform residue frequency distribution when it computes
+information content. You can override that background model by passing
+`residue_frequencies = Dict{Char,Float64}(...)` to `ComparisonOptions`.
+
+```julia
+dna_freqs = Dict('A' => 0.3, 'C' => 0.2, 'G' => 0.2, 'T' => 0.3)
+weighted = ComparisonOptions(;
+    alphabet = DNAAlphabet(),
+    residue_frequencies = dna_freqs,
+    min_shared_positions = 1,
+    normalized_ic_cutoff = 0.0,
+)
+round(compare("ATG", "[AGT]TG", weighted).match_ic, digits = 3)
+# 2.19
+```
+
 ## Allowed regex symbols and syntax
 
 Motif parsing supports a controlled regex-like subset.

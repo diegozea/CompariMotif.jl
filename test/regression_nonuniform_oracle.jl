@@ -1,6 +1,6 @@
 using TestItems
 
-@testitem "oracle defaults parity fixture" begin
+@testitem "oracle non-uniform frequency fixture" begin
     using Test
     using CompariMotif
 
@@ -41,15 +41,37 @@ using TestItems
 
     oracle_to_package(rel::String) = replace(rel, "Ugly" => "Complex")
 
+    function load_residue_frequencies(path::String)
+        freqs = Dict{Char, Float64}()
+        for line in eachline(path)
+            stripped = strip(line)
+            isempty(stripped) && continue
+            startswith(stripped, '#') && continue
+            stripped == "AA\tFREQ" && continue
+            cols = split(stripped, '\t')
+            length(cols) == 2 || error("Malformed frequency row: $line")
+            cols[1] == "Total" && continue
+            length(cols[1]) == 1 || error("Invalid residue key in row: $line")
+            freqs[only(cols[1])] = parse(Float64, cols[2])
+        end
+        return freqs
+    end
+
     root = dirname(@__DIR__)
-    motifs_path = joinpath(root, "data", "fixtures", "default_probe_motifs.tsv")
-    oracle_path = joinpath(root, "data", "fixtures", "oracle_default_probe_normalized.tsv")
+    motifs_path = joinpath(root, "data", "fixtures", "nonuniform_probe_motifs.tsv")
+    oracle_path = joinpath(root, "data", "fixtures", "oracle_nonuniform_probe_normalized.tsv")
+    frequency_path = joinpath(root, "data", "fixtures", "nonuniform_probe.aafreq.tsv")
 
     patterns = load_fixture_motifs(motifs_path)
     motif_to_index = Dict(motif => idx for (idx, motif) in enumerate(patterns))
     @test length(motif_to_index) == length(patterns)
 
-    results = compare(patterns, patterns, ComparisonOptions())
+    options = ComparisonOptions(;
+        residue_frequencies = load_residue_frequencies(frequency_path),
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0
+    )
+    results = compare(patterns, patterns, options)
     oracle_rows = load_oracle_rows(oracle_path)
 
     expected_pairs = Set{Tuple{Int, Int}}()

@@ -60,6 +60,17 @@ function _compare_positions(
         options::ComparisonOptions,
         spec::_AlphabetSpec
 )
+    return _compare_positions(
+        qpos, spos, options, spec, _residue_frequency_vector(options, spec))
+end
+
+function _compare_positions(
+        qpos::_Position,
+        spos::_Position,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
     # Anchors are valid only against the same anchor type.
     if qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
         if qpos.kind == spos.kind
@@ -98,8 +109,17 @@ function _compare_positions(
             contributes_position = false, exact_fixed = false)
     end
 
-    # Position IC contribution follows the less-specific side.
-    ic = min(_position_ic(qpos, spec), _position_ic(spos, spec))
+    # Partially overlapping ambiguous classes use the union class IC, matching
+    # the oracle's per-position "Ugly" scoring. Subset/superset matches still
+    # use the less-specific side.
+    ic = if relation == _REL_COMPLEX
+        _position_ic(_Position(_RESIDUE, unionclass(qclass, sclass).mask), spec, residue_frequencies)
+    else
+        min(
+            _position_ic(qpos, spec, residue_frequencies),
+            _position_ic(spos, spec, residue_frequencies)
+        )
+    end
     # Matched position count excludes wildcard-vs-wildcard.
     contributes = !_is_wildcard(qpos, spec.mask) && !_is_wildcard(spos, spec.mask)
     # Used for matchfix tie-break logic.
@@ -148,6 +168,24 @@ function _evaluate_alignment(
         options::ComparisonOptions,
         spec::_AlphabetSpec
 )
+    return _evaluate_alignment(
+        query_variant,
+        search_variant,
+        shift,
+        options,
+        spec,
+        _residue_frequency_vector(options, spec)
+    )
+end
+
+function _evaluate_alignment(
+        query_variant::_MotifVariant,
+        search_variant::_MotifVariant,
+        shift::Int,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
     qlen = length(query_variant.positions)
     slen = length(search_variant.positions)
     # Shift convention:
@@ -172,7 +210,7 @@ function _evaluate_alignment(
         sidx = qidx - shift
         qpos = query_variant.positions[qidx]
         spos = search_variant.positions[sidx]
-        cmp = _compare_positions(qpos, spos, options, spec)
+        cmp = _compare_positions(qpos, spos, options, spec, residue_frequencies)
         if cmp.hard_mismatch
             return nothing
         end
@@ -299,6 +337,22 @@ function _find_precise_match(
         options::ComparisonOptions,
         spec::_AlphabetSpec
 )
+    return _find_precise_match(
+        query_variants,
+        search_variants,
+        options,
+        spec,
+        _residue_frequency_vector(options, spec)
+    )
+end
+
+function _find_precise_match(
+        query_variants::Vector{_MotifVariant},
+        search_variants::Vector{_MotifVariant},
+        options::ComparisonOptions,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
     found_precise = false
     best = nothing
 
@@ -314,7 +368,7 @@ function _find_precise_match(
                     end
                     found_precise = true
                     candidate = _evaluate_alignment(
-                        qvariant, svariant, 1 - start, options, spec)
+                        qvariant, svariant, 1 - start, options, spec, residue_frequencies)
                     if candidate !== nothing && _is_better(candidate, best)
                         best = candidate
                     end
@@ -328,7 +382,7 @@ function _find_precise_match(
                     end
                     found_precise = true
                     candidate = _evaluate_alignment(
-                        qvariant, svariant, start - 1, options, spec)
+                        qvariant, svariant, start - 1, options, spec, residue_frequencies)
                     if candidate !== nothing && _is_better(candidate, best)
                         best = candidate
                     end
@@ -348,10 +402,17 @@ Compare two already-parsed motifs.
 function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif, options::ComparisonOptions)
     # Repeat ranges are expanded first; alignment runs over concrete variants.
     spec = _alphabet_spec(options.alphabet)
-    query_variants = _expand_variants(parsed_query, options, spec)
-    search_variants = _expand_variants(parsed_search, options, spec)
+    residue_frequencies = _residue_frequency_vector(options, spec)
+    query_variants = _expand_variants(parsed_query, options, spec, residue_frequencies)
+    search_variants = _expand_variants(parsed_search, options, spec, residue_frequencies)
     _,
-    best = _find_precise_match(query_variants, search_variants, options, spec)
+    best = _find_precise_match(
+        query_variants,
+        search_variants,
+        options,
+        spec,
+        residue_frequencies
+    )
 
     # The paper's "precise match first" rule is applied after regex
     # preprocessing/expansion, but the best hit is still selected across the
@@ -363,7 +424,7 @@ function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif
             slen = length(svariant.positions)
             for shift in (-(slen - 1)):(qlen - 1)
                 candidate = _evaluate_alignment(
-                    qvariant, svariant, shift, options, spec)
+                    qvariant, svariant, shift, options, spec, residue_frequencies)
                 candidate === nothing && continue
                 if _is_better(candidate, best)
                     best = candidate

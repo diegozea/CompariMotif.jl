@@ -23,7 +23,8 @@ const FIXTURE_SPECS = (
         motif_set = joinpath(FIXTURES_DIR, "regression_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_regression_normalized.tsv"),
         columns = ORACLE_NORMALIZED_COLUMNS,
-        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"]
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing
     ),
     (
         name = "defaults",
@@ -31,21 +32,32 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_default_probe_normalized.tsv"),
         columns = ORACLE_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=2", "normcut=0.5", "matchfix=0",
-            "mismatches=0", "overlaps=T", "xgmml=F"]
+            "mismatches=0", "overlaps=T", "xgmml=F"],
+        aafreq = nothing
     ),
     (
         name = "alternation",
         motif_set = joinpath(FIXTURES_DIR, "alternation_probe_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_alternation_probe_normalized.tsv"),
         columns = ALTERNATION_NORMALIZED_COLUMNS,
-        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"]
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing
     ),
     (
         name = "exact_prefilter",
         motif_set = joinpath(FIXTURES_DIR, "exact_prefilter_probe_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_exact_prefilter_probe_normalized.tsv"),
         columns = ALTERNATION_NORMALIZED_COLUMNS,
-        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"]
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing
+    ),
+    (
+        name = "nonuniform",
+        motif_set = joinpath(FIXTURES_DIR, "nonuniform_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_nonuniform_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = joinpath(FIXTURES_DIR, "nonuniform_probe.aafreq.tsv")
     )
 )
 
@@ -170,6 +182,9 @@ function _run_fixture!(oracle::String, spec)
             "python3", oracle, "motifs=$motif_file", "searchdb=$motif_file",
             "resfile=$result_prefix", "i=-1", "v=0", spec.oracle_args...
         ]
+        if spec.aafreq !== nothing
+            push!(cmd_parts, "aafreq=$(spec.aafreq)")
+        end
         cmd = Cmd(cmd_parts)
         @info "Running oracle fixture" fixture=spec.name cmd
         cd(tmpdir) do

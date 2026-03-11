@@ -27,6 +27,14 @@ _is_fixed(pos::_Position) = pos.kind === _RESIDUE && is_fixed(ResidueClass(pos.m
 Compute information content for one parsed position.
 """
 function _position_ic(pos::_Position, spec::_AlphabetSpec)
+    return _position_ic(pos, spec, _uniform_residue_frequency_vector(spec))
+end
+
+function _position_ic(
+        pos::_Position,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
     # Termini contribute as defined anchors.
     if pos.kind !== _RESIDUE
         return 1.0
@@ -35,9 +43,14 @@ function _position_ic(pos::_Position, spec::_AlphabetSpec)
     if _is_wildcard(pos, spec.mask)
         return 0.0
     end
-    # For a residue set of size k in alphabet size N, use log_N(1/(k/N)).
-    k = count_ones(pos.mask)
-    return -log(k / length(spec.chars)) / spec.log_base
+    # Information depends on the total background mass of the residue set.
+    mass = 0.0
+    for i in eachindex(residue_frequencies)
+        if (pos.mask & (ResidueMask(1) << (i - 1))) != 0
+            mass += residue_frequencies[i]
+        end
+    end
+    return -log(mass) / spec.log_base
 end
 
 """
@@ -394,6 +407,15 @@ end
 Expand ranged-repeat motifs into concrete variant sequences.
 """
 function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions, spec::_AlphabetSpec)
+    return _expand_variants(parsed, options, spec, _residue_frequency_vector(options, spec))
+end
+
+function _expand_variants(
+        parsed::_ParsedMotif,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
     nvariants = big(0)
     for tokens in parsed.alternatives
         nvariants += _variant_count(tokens)
@@ -413,7 +435,7 @@ function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions, spec
             # Compute total motif information from concrete expanded positions.
             info = 0.0
             for pos in positions
-                info += _position_ic(pos, spec)
+                info += _position_ic(pos, spec, residue_frequencies)
             end
             push!(variants, _MotifVariant(copy(positions), join(symbols), info))
             return

@@ -34,6 +34,75 @@ function _coerce_matchfix(mode::AbstractString)
     _coerce_matchfix(Symbol(replace(lowercase(strip(mode)), ' ' => '_')))
 end
 
+function _canonicalize_residue_frequencies(::Nothing, ::_AlphabetSpec)
+    return nothing
+end
+
+function _canonicalize_residue_frequencies(
+        residue_frequencies::AbstractDict{Char, <:Real},
+        spec::_AlphabetSpec
+)
+    normalized = Dict{Char, Float64}()
+    for (key, value) in pairs(residue_frequencies)
+        aa = uppercase(key)
+        haskey(spec.index, aa) || throw(ArgumentError(
+            "`residue_frequencies` contains unsupported residue '$key' for the selected alphabet."
+        ))
+        haskey(normalized, aa) && throw(ArgumentError(
+            "`residue_frequencies` contains duplicate residue '$aa' after case normalization."
+        ))
+        numeric = Float64(value)
+        isfinite(numeric) || throw(
+            ArgumentError("`residue_frequencies` values must be finite.")
+        )
+        numeric > 0.0 || throw(
+            ArgumentError("`residue_frequencies` values must be strictly positive.")
+        )
+        normalized[aa] = numeric
+    end
+
+    missing = Char[]
+    for aa in spec.chars
+        haskey(normalized, aa) || push!(missing, aa)
+    end
+    isempty(missing) || throw(ArgumentError(
+        "`residue_frequencies` must define every residue in the selected alphabet; missing: " *
+        join(missing, ", ")
+    ))
+
+    scale = maximum(values(normalized))
+    scale > 0.0 || throw(
+        ArgumentError("`residue_frequencies` must have positive total mass.")
+    )
+    total = 0.0
+    for value in values(normalized)
+        total += value / scale
+    end
+    isfinite(total) && total > 0.0 || throw(
+        ArgumentError("`residue_frequencies` must normalize to a finite positive total mass.")
+    )
+
+    ordered = Dict{Char, Float64}()
+    for aa in spec.chars
+        probability = (normalized[aa] / scale) / total
+        probability > 0.0 || throw(ArgumentError(
+            "`residue_frequencies` span too large a dynamic range to normalize safely in Float64."
+        ))
+        ordered[aa] = probability
+    end
+    return ordered
+end
+
+function _uniform_residue_frequency_vector(spec::_AlphabetSpec)
+    return fill(inv(length(spec.chars)), length(spec.chars))
+end
+
+function _residue_frequency_vector(options::ComparisonOptions, spec::_AlphabetSpec)
+    frequencies = options.residue_frequencies
+    frequencies === nothing && return _uniform_residue_frequency_vector(spec)
+    return [frequencies[aa] for aa in spec.chars]
+end
+
 """
     ComparisonOptions(; kwargs...)::ComparisonOptions
 
@@ -48,6 +117,7 @@ true
 """
 function ComparisonOptions(;
         alphabet::_AlphabetValue = ProteinAlphabet(),
+        residue_frequencies::Union{Nothing, AbstractDict{Char, <:Real}} = nothing,
         min_shared_positions::Int = 2,
         normalized_ic_cutoff::Real = 0.5,
         matchfix::Union{MatchFixMode, Symbol, AbstractString} = MatchFixNone,
@@ -56,6 +126,8 @@ function ComparisonOptions(;
         max_variants::Int = 10_000
 )
     # Validate and canonicalize simple scalar options first.
+    spec = _alphabet_spec(alphabet)
+    normalized_frequencies = _canonicalize_residue_frequencies(residue_frequencies, spec)
     matchfix_mode = _coerce_matchfix(matchfix)
     if min_shared_positions < 1
         throw(ArgumentError("`min_shared_positions` must be >= 1."))
@@ -72,6 +144,7 @@ function ComparisonOptions(;
 
     return ComparisonOptions(
         alphabet,
+        normalized_frequencies,
         min_shared_positions,
         Float64(normalized_ic_cutoff),
         matchfix_mode,

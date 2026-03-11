@@ -30,6 +30,18 @@ using TestItems
         @test length(table.query) == 9
     end
 
+    @testset "custom residue frequencies" begin
+        weighted = ComparisonOptions(;
+            alphabet = DNAAlphabet(),
+            residue_frequencies = Dict('A' => 0.3, 'C' => 0.2, 'G' => 0.2, 'T' => 0.3),
+            min_shared_positions = 1,
+            normalized_ic_cutoff = 0.0
+        )
+        result = compare("ATG", "[AGT]TG", weighted)
+
+        @test round(result.match_ic, digits = 3) == 2.19
+    end
+
     @testset "canonicalization" begin
         @test normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
     end

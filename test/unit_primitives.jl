@@ -67,6 +67,100 @@ end
     end
 end
 
+@testitem "non-uniform residue frequencies" begin
+    using Test
+    using CompariMotif
+
+    cases = (
+        (
+            ProteinAlphabet(),
+            Dict(aa => 1.0 for aa in "ARNDCQEGHILKMFPSTWYV"),
+            'A',
+            'C',
+            "[AC]"
+        ),
+        (
+            DNAAlphabet(),
+            Dict('A' => 7.0, 'C' => 2.0, 'G' => 1.0, 'T' => 1.0),
+            'A',
+            'C',
+            "[AC]"
+        ),
+        (
+            RNAAlphabet(),
+            Dict('A' => 7.0, 'C' => 2.0, 'G' => 1.0, 'U' => 1.0),
+            'A',
+            'C',
+            "[AC]"
+        )
+    )
+
+    for (alphabet, weights, common, rare, class_pattern) in cases
+        if alphabet isa ProteinAlphabet
+            weights[common] = 70.0
+            weights[rare] = 20.0
+        end
+        options = ComparisonOptions(;
+            alphabet,
+            residue_frequencies = weights,
+            min_shared_positions = 1,
+            normalized_ic_cutoff = 0.0
+        )
+        spec = CompariMotif._alphabet_spec(alphabet)
+        vector = CompariMotif._residue_frequency_vector(options, spec)
+
+        common_variant = only(CompariMotif._expand_variants(
+            CompariMotif._parse_motif(string(common), options), options, spec))
+        class_variant = only(CompariMotif._expand_variants(
+            CompariMotif._parse_motif(class_pattern, options), options, spec))
+
+        common_expected = -log(options.residue_frequencies[common]) /
+                          log(length(spec.chars))
+        class_expected = -log(
+            options.residue_frequencies['A'] + options.residue_frequencies['C']
+        ) / log(length(spec.chars))
+
+        @test CompariMotif._position_ic(only(common_variant.positions), spec, vector) ≈
+              common_expected atol = 1e-12
+        @test common_variant.information ≈ common_expected atol = 1e-12
+        @test class_variant.information ≈ class_expected atol = 1e-12
+
+        result = compare(string(common), class_pattern, options)
+        @test result.matched
+        @test result.match_ic ≈ class_expected atol = 1e-12
+        @test result.query_information ≈ common_expected atol = 1e-12
+        @test result.search_information ≈ class_expected atol = 1e-12
+    end
+
+    protein_weights = Dict(
+        'A' => 0.7, 'C' => 0.2, 'D' => 0.01, 'E' => 0.01, 'F' => 0.005,
+        'G' => 0.005, 'H' => 0.005, 'I' => 0.005, 'K' => 0.005, 'L' => 0.005,
+        'M' => 0.005, 'N' => 0.005, 'P' => 0.005, 'Q' => 0.005, 'R' => 0.005,
+        'S' => 0.005, 'T' => 0.005, 'V' => 0.005, 'W' => 0.005, 'Y' => 0.005
+    )
+    weighted_options = ComparisonOptions(;
+        residue_frequencies = protein_weights,
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0
+    )
+    weighted_spec = CompariMotif._alphabet_spec(weighted_options.alphabet)
+    weighted_union = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("[ACD]", weighted_options), weighted_options, weighted_spec))
+    weighted_query = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("[AD]", weighted_options), weighted_options, weighted_spec))
+    weighted_search = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("[AC]", weighted_options), weighted_options, weighted_spec))
+
+    weighted_complex = compare("[AD]", "[AC]", weighted_options)
+    @test weighted_complex.matched
+    @test weighted_complex.query_relationship == "Complex Match"
+    @test weighted_complex.search_relationship == "Complex Match"
+    @test weighted_complex.match_ic ≈ weighted_union.information atol = 1e-12
+    @test weighted_complex.normalized_ic ≈
+          weighted_union.information /
+          min(weighted_query.information, weighted_search.information) atol = 1e-12
+end
+
 @testitem "precise match phase precedes sliding window" begin
     using Test
     using CompariMotif
@@ -124,6 +218,7 @@ end
 
     defaults = ComparisonOptions()
     @test defaults.alphabet isa ProteinAlphabet
+    @test defaults.residue_frequencies === nothing
 
     rna_options = ComparisonOptions(; alphabet = RNAAlphabet())
     @test rna_options.alphabet isa RNAAlphabet
@@ -135,6 +230,15 @@ end
     mismatch_options = ComparisonOptions(; mismatches = 1)
     @test mismatch_options.mismatches == 1
 
+    custom_dna = ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict('a' => 7.0, 'c' => 2.0, 'g' => 1.0, 't' => 1.0)
+    )
+    @test custom_dna.residue_frequencies['A'] ≈ 7 / 11
+    @test custom_dna.residue_frequencies['C'] ≈ 2 / 11
+    @test custom_dna.residue_frequencies['G'] ≈ 1 / 11
+    @test custom_dna.residue_frequencies['T'] ≈ 1 / 11
+
     built_spec = CompariMotif._build_alphabet_spec(CompariMotif.RNAAlphabet)
     cached_spec = CompariMotif._alphabet_spec(CompariMotif.RNAAlphabet())
     @test built_spec.chars == "ACGU"
@@ -145,6 +249,20 @@ end
     @test cached_spec.index == built_spec.index
     @test cached_spec.mask == built_spec.mask
     @test cached_spec.log_base == built_spec.log_base
+    @test CompariMotif._residue_frequency_vector(custom_dna, CompariMotif._alphabet_spec(DNAAlphabet())) ≈
+          [7, 2, 1, 1] / 11
+
+    huge_counts = ComparisonOptions(;
+        residue_frequencies = Dict(aa => 1e308 for aa in "ACDEFGHIKLMNPQRSTVWY"),
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0
+    )
+    @test huge_counts.residue_frequencies['A'] ≈ 1 / 20
+    huge_result = compare("A", "A", huge_counts)
+    @test huge_result.matched
+    @test huge_result.match_ic ≈ 1.0 atol = 1e-12
+    @test huge_result.normalized_ic ≈ 1.0 atol = 1e-12
+    @test isfinite(huge_result.query_information)
 
     shown = sprint(show, MIME"text/plain"(), ComparisonOptions(; alphabet = DNAAlphabet(), mismatches = 1))
     @test occursin("alphabet", shown)
@@ -153,6 +271,66 @@ end
     @test !occursin("alphabet_index", shown)
     @test !occursin("alphabet_mask", shown)
     @test !occursin("log_base", shown)
+end
+
+@testitem "partial overlap scoring uses union information" begin
+    using Test
+    using CompariMotif
+
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+    ugly_union = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A[KRQ]", options), options, spec))
+    ugly_query = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A[KR]", options), options, spec))
+    ugly_search = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A[RQ]", options), options, spec))
+
+    ugly = compare("A[KR]", "A[RQ]", options)
+    @test ugly.matched
+    @test ugly.query_relationship == "Complex Match"
+    @test ugly.search_relationship == "Complex Match"
+    @test ugly.match_ic ≈ ugly_union.information atol = 1e-12
+    @test ugly.normalized_ic ≈
+          ugly_union.information / min(ugly_query.information, ugly_search.information) atol = 1e-12
+end
+
+@testitem "residue frequency validation" begin
+    using Test
+    using CompariMotif
+
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict('A' => 1.0, 'C' => 1.0, 'G' => 1.0)
+    )
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict(
+            'A' => 1.0, 'C' => 1.0, 'G' => 1.0, 'T' => 1.0, 'U' => 1.0
+        )
+    )
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict(
+            'a' => 1.0, 'A' => 2.0, 'C' => 1.0, 'G' => 1.0, 'T' => 1.0
+        )
+    )
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict('A' => 1.0, 'C' => NaN, 'G' => 1.0, 'T' => 1.0)
+    )
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict('A' => 1.0, 'C' => Inf, 'G' => 1.0, 'T' => 1.0)
+    )
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict('A' => 1.0, 'C' => 0.0, 'G' => 1.0, 'T' => 1.0)
+    )
+    @test_throws ArgumentError ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = Dict('A' => 1.0, 'C' => -1.0, 'G' => 1.0, 'T' => 1.0)
+    )
 end
 
 @testitem "single pair relationship categories" begin

@@ -16,4 +16,16 @@ using TestItems
     table = to_column_table(results)
     @test length(table.query_index) == 16
     @test :query_relationship in keys(table)
+
+    dna_freqs = Dict('A' => 0.3, 'C' => 0.2, 'G' => 0.2, 'T' => 0.3)
+    weighted = ComparisonOptions(;
+        alphabet = DNAAlphabet(),
+        residue_frequencies = dna_freqs,
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0
+    )
+    rounded_match_ic = round(compare("ATG", "[AGT]TG", weighted).match_ic, digits = 3)
+
+    @test rounded_match_ic == 2.19
+    @test repr(rounded_match_ic) == "2.19"
 end

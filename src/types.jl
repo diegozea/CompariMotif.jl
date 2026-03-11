@@ -142,6 +142,11 @@ many [`compare`](@ref) calls.
 # Keywords
 - `alphabet = ProteinAlphabet()`: comparison alphabet (`ProteinAlphabet()`,
   `DNAAlphabet()`, or `RNAAlphabet()`).
+- `residue_frequencies::Union{Nothing, AbstractDict{Char,<:Real}} = nothing`:
+  optional background residue frequencies for information-content scoring.
+  When omitted, CompariMotif uses a uniform frequency distribution. Provided
+  dictionaries must define every residue in the selected alphabet, use
+  strictly positive finite values. Frequencies are normalized internally to sum to `1.0`.
 - `min_shared_positions::Int = 2`: minimum number of matched, non-wildcard
   positions required for a hit.
 - `normalized_ic_cutoff::Real = 0.5`: minimum normalized information content.
@@ -171,6 +176,8 @@ See also [`MatchFixMode`](@ref), [`compare`](@ref), [`ComparisonResult`](@ref).
 struct ComparisonOptions
     # Public alphabet selector used to reconstruct or display the configuration.
     alphabet::_AlphabetValue
+    # Optional normalized background frequencies keyed by canonical alphabet residue.
+    residue_frequencies::Union{Nothing, Dict{Char, Float64}}
     # Minimum matched non-wildcard positions for a valid hit.
     min_shared_positions::Int
     # Minimum normalized information score for a valid hit.
