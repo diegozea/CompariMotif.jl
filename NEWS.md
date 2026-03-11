@@ -14,6 +14,11 @@
 - *[Breaking change]* `ComparisonOptions` now keeps the selected alphabet marker in the public
   struct and display output instead of exposing derived internal alphabet
   caches.
+- Added support for non-uniform residue frequencies through
+  `ComparisonOptions(; residue_frequencies = ...)`, so information-content
+  scoring can use a custom DNA, RNA, or protein background model instead of a
+  uniform distribution. The new option validates alphabet coverage and is
+  covered by dedicated oracle-backed regression tests.
 - Fixed the comparison pipeline to perform the paper's precise exact-match and
   exact-subsequence pre-pass before the full sliding-window overlap search.
   This improves candidate selection for motifs with alternation and repeat
