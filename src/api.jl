@@ -37,8 +37,8 @@ end
     compare(motifs::AbstractVector{<:AbstractString},
             options::ComparisonOptions)::Matrix{ComparisonResult}
 
-Compare motifs according to the CompariMotif scoring scheme described in
-Edwards et al. (2008).
+Compare motifs according to the CompariMotif scoring scheme described by
+[Edwards2008CompariMotif](@citet).
 
 - Pairwise mode compares one query motif against one search motif.
 - Matrix mode computes all pairwise query-vs-database comparisons.
