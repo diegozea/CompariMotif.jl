@@ -11,7 +11,7 @@ expressions.
 - `compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult`
 - `compare(motifs::AbstractVector{<:AbstractString}, db::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
 - `compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
-- `normalize_motif(motif::AbstractString; alphabet = :protein)::String`
+- `normalize_motif(motif::AbstractString; alphabet = ProteinAlphabet())::String`
 - `to_column_table(result_or_results)::NamedTuple`
 
 ## Minimal example
@@ -36,9 +36,9 @@ df = DataFrame(table)
 Motif parsing supports a controlled regex-like subset.
 
 - Fixed residues from the selected alphabet:
-  - protein (`alphabet=:protein`, default): `ARNDCQEGHILKMFPSTWYV`
-  - DNA (`alphabet=:dna`): `ACGT`
-  - RNA (`alphabet=:rna`): `ACGU`
+  - protein (`alphabet=ProteinAlphabet()`, default): `ARNDCQEGHILKMFPSTWYV`
+  - DNA (`alphabet=DNAAlphabet()`): `ACGT`
+  - RNA (`alphabet=RNAAlphabet()`): `ACGU`
 - Wildcards:
   - `x`, `X`, and `.` are equivalent and mean "any residue in the selected alphabet".
 - Character classes:

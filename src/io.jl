@@ -1,5 +1,5 @@
 """
-    _empty_result_columns(nrows::Int) -> NamedTuple
+    _empty_result_columns(nrows::Int)::NamedTuple
 
 Allocate typed result columns for `nrows` rows.
 """
@@ -48,7 +48,7 @@ function _set_result_row!(columns::NamedTuple, row::Int, result::ComparisonResul
 end
 
 """
-    to_column_table(results) -> NamedTuple
+    to_column_table(results)::NamedTuple
 
 Convert comparison results into a column-oriented `NamedTuple` where each key is
 a column name and each value is a vector column.
@@ -63,25 +63,14 @@ without requiring either dependency in the package itself.
 
 # Examples
 ```jldoctest
-julia> using CompariMotif, DataFrames
-
-julia> motifs = ["RKLI", "R[KR]L[IV]"];
+julia> using CompariMotif
 
 julia> options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0);
 
-julia> table = to_column_table(compare(motifs, options));
+julia> table = to_column_table(compare("RKLI", "R[KR]L[IV]", options));
 
-julia> df = DataFrame(table);
-
-julia> show(select(df, [:query_index, :search_index, :query, :search, :query_relationship]), allrows = true, allcols = true, truncate = 0)
-4×5 DataFrame
- Row │ query_index  search_index  query       search      query_relationship
-     │ Int64        Int64         String      String      String
-─────┼───────────────────────────────────────────────────────────────────────
-   1 │           1             1  RKLI        RKLI        Exact Match
-   2 │           1             2  RKLI        R[KR]L[IV]  Variant Match
-   3 │           2             1  R[KR]L[IV]  RKLI        Degenerate Match
-   4 │           2             2  R[KR]L[IV]  R[KR]L[IV]  Exact Match
+julia> table.query_relationship[1]
+"Variant Match"
 ```
 
 $(_DOC_COMPARE_REF)
@@ -94,7 +83,7 @@ function to_column_table(result::ComparisonResult)
 end
 
 """
-    to_column_table(results::AbstractVector{<:ComparisonResult}) -> NamedTuple
+    to_column_table(results::AbstractVector{<:ComparisonResult})::NamedTuple
 
 Convert a result vector to a column table with `result_index`.
 """
@@ -109,7 +98,7 @@ function to_column_table(results::AbstractVector{<:ComparisonResult})
 end
 
 """
-    to_column_table(results::AbstractMatrix{<:ComparisonResult}) -> NamedTuple
+    to_column_table(results::AbstractMatrix{<:ComparisonResult})::NamedTuple
 
 Convert a result matrix to a column table with `query_index` and `search_index`.
 """

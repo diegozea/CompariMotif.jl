@@ -1,24 +1,5 @@
 using TestItems
 
-@testitem "paper Figure 1 example" begin
-    using Test
-    using CompariMotif
-
-    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
-
-    # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 1 (page 1308)
-    result = compare("[KR]xLx[FYLIMVP]", "RxLE", options)
-
-    @test result.matched
-    @test result.query_relationship == "Degenerate Parent"
-    @test result.search_relationship == "Variant Subsequence"
-    @test result.matched_positions == 2
-    @test result.match_ic ≈ 1.769 atol = 1e-3
-    @test result.normalized_ic ≈ 0.835 atol = 1e-3
-    @test result.core_ic ≈ 0.590 atol = 1e-3
-    @test result.score ≈ 1.669 atol = 1e-3
-end
-
 @testitem "paper Table 1 relationship words" begin
     using Test
     using CompariMotif

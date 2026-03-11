@@ -3,8 +3,8 @@ module CompariMotif
 using AutoPrettyPrinting
 
 export ComparisonOptions, ComparisonResult, MatchFixMode, MatchFixBothFixed,
-       MatchFixNone, MatchFixQueryFixed, MatchFixSearchFixed, compare,
-       normalize_motif, to_column_table
+       MatchFixNone, MatchFixQueryFixed, MatchFixSearchFixed, ProteinAlphabet,
+       DNAAlphabet, RNAAlphabet, compare, normalize_motif, to_column_table
 
 # Module assembly order matters:
 # - foundational constants/types first,
@@ -13,6 +13,7 @@ export ComparisonOptions, ComparisonResult, MatchFixMode, MatchFixBothFixed,
 # - public API methods and output writers last.
 # This keeps includes acyclic and makes data flow easier to follow.
 include("constants.jl")
+include("alphabets.jl")
 include("types.jl")
 include("options.jl")
 include("parsing.jl")

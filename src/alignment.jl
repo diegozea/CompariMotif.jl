@@ -1,5 +1,5 @@
 """
-    _match_symbol(qpos, spos, intersection, relation, mismatch, options) -> String
+    _match_symbol(qpos, spos, intersection, relation, mismatch, spec)::String
 
 Render one output symbol for the overlap pattern.
 """
@@ -9,7 +9,7 @@ function _match_symbol(
         intersection::ResidueMask,
         relation::_RelationshipType,
         mismatch::Bool,
-        options::ComparisonOptions
+        spec::_AlphabetSpec
 )
     if qpos.kind == _NTERMINUS
         return "^"
@@ -17,8 +17,8 @@ function _match_symbol(
         return "\$"
     end
 
-    qwild = _is_wildcard(qpos, options)
-    swild = _is_wildcard(spos, options)
+    qwild = _is_wildcard(qpos, spec.mask)
+    swild = _is_wildcard(spos, spec.mask)
     if qwild && swild
         # Preserve compact wildcard representation in overlap output.
         return "x"
@@ -29,32 +29,37 @@ function _match_symbol(
     if mismatch
         # Mismatch still contributes a descriptive symbol in the matched pattern.
         union_mask = unionclass(qclass, sclass).mask
-        return _mask_to_symbol(union_mask, options; as_lowercase = true, wildcard_symbol = "x")
+        return _mask_to_symbol(union_mask, spec; as_lowercase = true, wildcard_symbol = "x")
     end
     if relation == _REL_EXACT
         if qwild || swild
             if qwild
-                return _mask_to_symbol(spos.mask, options; as_lowercase = true, wildcard_symbol = "x")
+                return _mask_to_symbol(spos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
             end
-            return _mask_to_symbol(qpos.mask, options; as_lowercase = true, wildcard_symbol = "x")
+            return _mask_to_symbol(qpos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
         end
-        return _mask_to_symbol(intersection, options; as_lowercase = false, wildcard_symbol = "x")
+        return _mask_to_symbol(intersection, spec; as_lowercase = false, wildcard_symbol = "x")
     end
     if qwild
-        return _mask_to_symbol(spos.mask, options; as_lowercase = true, wildcard_symbol = "x")
+        return _mask_to_symbol(spos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
     elseif swild
-        return _mask_to_symbol(qpos.mask, options; as_lowercase = true, wildcard_symbol = "x")
+        return _mask_to_symbol(qpos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
     end
     union_mask = unionclass(qclass, sclass).mask
-    return _mask_to_symbol(union_mask, options; as_lowercase = true, wildcard_symbol = "x")
+    return _mask_to_symbol(union_mask, spec; as_lowercase = true, wildcard_symbol = "x")
 end
 
 """
-    _compare_positions(qpos, spos, options)
+    _compare_positions(qpos, spos, options, spec)
 
 Compare one query/search position pair and return matching diagnostics.
 """
-function _compare_positions(qpos::_Position, spos::_Position, options::ComparisonOptions)
+function _compare_positions(
+        qpos::_Position,
+        spos::_Position,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec
+)
     # Anchors are valid only against the same anchor type.
     if qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
         if qpos.kind == spos.kind
@@ -94,9 +99,9 @@ function _compare_positions(qpos::_Position, spos::_Position, options::Compariso
     end
 
     # Position IC contribution follows the less-specific side.
-    ic = min(_position_ic(qpos, options), _position_ic(spos, options))
+    ic = min(_position_ic(qpos, spec), _position_ic(spos, spec))
     # Matched position count excludes wildcard-vs-wildcard.
-    contributes = !_is_wildcard(qpos, options) && !_is_wildcard(spos, options)
+    contributes = !_is_wildcard(qpos, spec.mask) && !_is_wildcard(spos, spec.mask)
     # Used for matchfix tie-break logic.
     exact_fixed = relation == _REL_EXACT && _is_fixed(qpos) && _is_fixed(spos)
     return (
@@ -111,7 +116,7 @@ function _compare_positions(qpos::_Position, spos::_Position, options::Compariso
 end
 
 """
-    _query_fixed_required(mode::MatchFixMode) -> Bool
+    _query_fixed_required(mode::MatchFixMode)::Bool
 
 Return `true` when query fixed residues must match exactly.
 """
@@ -121,7 +126,7 @@ function _query_fixed_required(mode::MatchFixMode)
 end
 
 """
-    _search_fixed_required(mode::MatchFixMode) -> Bool
+    _search_fixed_required(mode::MatchFixMode)::Bool
 
 Return `true` when search fixed residues must match exactly.
 """
@@ -131,7 +136,7 @@ function _search_fixed_required(mode::MatchFixMode)
 end
 
 """
-    _evaluate_alignment(query_variant, search_variant, shift, options)
+    _evaluate_alignment(query_variant, search_variant, shift, options, spec)
 
 Evaluate one concrete shift between two expanded motif variants.
 Returns `_Candidate` when all thresholds pass, otherwise `nothing`.
@@ -140,7 +145,8 @@ function _evaluate_alignment(
         query_variant::_MotifVariant,
         search_variant::_MotifVariant,
         shift::Int,
-        options::ComparisonOptions
+        options::ComparisonOptions,
+        spec::_AlphabetSpec
 )
     qlen = length(query_variant.positions)
     slen = length(search_variant.positions)
@@ -166,11 +172,11 @@ function _evaluate_alignment(
         sidx = qidx - shift
         qpos = query_variant.positions[qidx]
         spos = search_variant.positions[sidx]
-        cmp = _compare_positions(qpos, spos, options)
+        cmp = _compare_positions(qpos, spos, options, spec)
         if cmp.hard_mismatch
             return nothing
         end
-        if !(_is_wildcard(qpos, options) && _is_wildcard(spos, options))
+        if !(_is_wildcard(qpos, spec.mask) && _is_wildcard(spos, spec.mask))
             # Core length ignores dual-wildcard positions.
             core_length += 1
         end
@@ -202,7 +208,7 @@ function _evaluate_alignment(
 
         print(matched_pattern,
             _match_symbol(
-                qpos, spos, cmp.intersection, cmp.relation, cmp.mismatch, options))
+                qpos, spos, cmp.intersection, cmp.relation, cmp.mismatch, spec))
     end
 
     if matched_positions < options.min_shared_positions
@@ -241,7 +247,7 @@ function _evaluate_alignment(
 end
 
 """
-    _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate}) -> Bool
+    _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})::Bool
 
 Apply deterministic candidate ordering:
 1) higher `match_ic`, 2) more matched positions, 3) more exact fixed matches.
@@ -261,23 +267,103 @@ function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
 end
 
 """
-    _compare_parsed(parsed_query, parsed_search, options) -> ComparisonResult
+    _matches_exact_subsequence(shorter, longer, start)::Bool
+
+Return `true` when `shorter` matches `longer[start:start+length(shorter)-1]`
+position-for-position with identical anchors/residue classes.
+"""
+function _matches_exact_subsequence(
+        shorter::Vector{_Position},
+        longer::Vector{_Position},
+        start::Int
+)
+    @inbounds for i in eachindex(shorter)
+        apos = shorter[i]
+        bpos = longer[start + i - 1]
+        if apos.kind != bpos.kind || apos.mask != bpos.mask
+            return false
+        end
+    end
+    return true
+end
+
+"""
+    _find_precise_match(query_variants, search_variants, options, spec)
+
+Search only exact same / exact-subsequence relationships. Returns
+`(found_precise, best_candidate)`.
+"""
+function _find_precise_match(
+        query_variants::Vector{_MotifVariant},
+        search_variants::Vector{_MotifVariant},
+        options::ComparisonOptions,
+        spec::_AlphabetSpec
+)
+    found_precise = false
+    best = nothing
+
+    for qvariant in query_variants
+        qlen = length(qvariant.positions)
+        for svariant in search_variants
+            slen = length(svariant.positions)
+
+            if qlen <= slen
+                for start in 1:(slen - qlen + 1)
+                    if !_matches_exact_subsequence(qvariant.positions, svariant.positions, start)
+                        continue
+                    end
+                    found_precise = true
+                    candidate = _evaluate_alignment(
+                        qvariant, svariant, 1 - start, options, spec)
+                    if candidate !== nothing && _is_better(candidate, best)
+                        best = candidate
+                    end
+                end
+            end
+
+            if slen < qlen
+                for start in 1:(qlen - slen + 1)
+                    if !_matches_exact_subsequence(svariant.positions, qvariant.positions, start)
+                        continue
+                    end
+                    found_precise = true
+                    candidate = _evaluate_alignment(
+                        qvariant, svariant, start - 1, options, spec)
+                    if candidate !== nothing && _is_better(candidate, best)
+                        best = candidate
+                    end
+                end
+            end
+        end
+    end
+
+    return (found_precise, best)
+end
+
+"""
+    _compare_parsed(parsed_query, parsed_search, options)::ComparisonResult
 
 Compare two already-parsed motifs.
 """
 function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif, options::ComparisonOptions)
     # Repeat ranges are expanded first; alignment runs over concrete variants.
-    query_variants = _expand_variants(parsed_query, options)
-    search_variants = _expand_variants(parsed_search, options)
-    best = nothing
+    spec = _alphabet_spec(options.alphabet)
+    query_variants = _expand_variants(parsed_query, options, spec)
+    search_variants = _expand_variants(parsed_search, options, spec)
+    _,
+    best = _find_precise_match(query_variants, search_variants, options, spec)
 
-    # Evaluate all relative shifts for each variant pair.
+    # The paper's "precise match first" rule is applied after regex
+    # preprocessing/expansion, but the best hit is still selected across the
+    # full expanded motif pair. Exact-subsequence hits from one branch must not
+    # suppress stronger overlaps from other branches.
     for qvariant in query_variants
         for svariant in search_variants
             qlen = length(qvariant.positions)
             slen = length(svariant.positions)
             for shift in (-(slen - 1)):(qlen - 1)
-                candidate = _evaluate_alignment(qvariant, svariant, shift, options)
+                candidate = _evaluate_alignment(
+                    qvariant, svariant, shift, options, spec)
                 candidate === nothing && continue
                 if _is_better(candidate, best)
                     best = candidate

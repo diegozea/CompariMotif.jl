@@ -5,6 +5,7 @@ DocMeta.setdocmeta!(CompariMotif, :DocTestSetup, :(using CompariMotif); recursiv
 
 makedocs(;
     modules = [CompariMotif],
+    checkdocs = :exports,
     authors = "Diego Javier Zea <diegozea@gmail.com> and contributors",
     sitename = "CompariMotif.jl",
     format = Documenter.HTML(;
@@ -14,6 +15,9 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
+        "External API" => "external_api.md",
+        "FAQ / How-To" => "faq.md",
+        "Internal API & Pipeline" => "internal_api.md"
     ]
 )
 

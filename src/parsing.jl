@@ -1,47 +1,47 @@
 """
-    _is_terminus(pos::_Position) -> Bool
+    _is_terminus(pos::_Position)::Bool
 
 Return `true` when `pos` is a terminus anchor (`^` or `\$`).
 """
 _is_terminus(pos::_Position) = pos.kind !== _RESIDUE
 
 """
-    _is_wildcard(pos::_Position, options::ComparisonOptions) -> Bool
+    _is_wildcard(pos::_Position, wildcard_mask::ResidueMask)::Bool
 
 Return `true` when `pos` matches all residues in the selected alphabet.
 """
-function _is_wildcard(pos::_Position, options::ComparisonOptions)
-    pos.kind === _RESIDUE && is_wildcard(ResidueClass(pos.mask), options)
+function _is_wildcard(pos::_Position, wildcard_mask::ResidueMask)
+    pos.kind === _RESIDUE && pos.mask == wildcard_mask
 end
 
 """
-    _is_fixed(pos::_Position) -> Bool
+    _is_fixed(pos::_Position)::Bool
 
 Return `true` when `pos` encodes exactly one residue.
 """
 _is_fixed(pos::_Position) = pos.kind === _RESIDUE && is_fixed(ResidueClass(pos.mask))
 
 """
-    _position_ic(pos::_Position, options::ComparisonOptions) -> Float64
+    _position_ic(pos::_Position, spec::_AlphabetSpec)::Float64
 
 Compute information content for one parsed position.
 """
-function _position_ic(pos::_Position, options::ComparisonOptions)
+function _position_ic(pos::_Position, spec::_AlphabetSpec)
     # Termini contribute as defined anchors.
     if pos.kind !== _RESIDUE
         return 1.0
     end
     # Wildcards carry no residue specificity and therefore no IC contribution.
-    if _is_wildcard(pos, options)
+    if _is_wildcard(pos, spec.mask)
         return 0.0
     end
     # For a residue set of size k in alphabet size N, use log_N(1/(k/N)).
     k = count_ones(pos.mask)
-    return -log(k / length(options.alphabet)) / options.log_base
+    return -log(k / length(spec.chars)) / spec.log_base
 end
 
 """
-    _parse_repeat_quantifier(text::AbstractString, i::Int) -> (Int, Int, Int)
+    _parse_repeat_quantifier(text::AbstractString, i::Int)::Tuple{Int, Int, Int}
 
 Parse optional repeat quantifier at index `i`, returning `(min, max, next_index)`.
 """
@@ -91,25 +91,25 @@ end
 # This gives stable set operations for exact/subset/superset/overlap checks.
 
 """
-    _mask_from_char(char::Char, options::ComparisonOptions) -> ResidueMask
+    _mask_from_char(char::Char, spec::_AlphabetSpec)::ResidueMask
 
 Return the residue mask for one alphabet character.
 """
-function _mask_from_char(char::Char, options::ComparisonOptions)
+function _mask_from_char(char::Char, spec::_AlphabetSpec)
     # Matching is case-insensitive at parse time.
     aa = uppercase(char)
-    idx = get(options.alphabet_index, aa, 0)
+    idx = get(spec.index, aa, 0)
     idx == 0 && throw(ArgumentError("Unsupported residue '$char' for selected alphabet."))
     # The first residue in alphabet uses bit 0, second uses bit 1, etc.
     return ResidueMask(1) << (idx - 1)
 end
 
 """
-    _class_mask(raw::AbstractString, options::ComparisonOptions) -> ResidueMask
+    _class_mask(raw::AbstractString, spec::_AlphabetSpec)::ResidueMask
 
 Parse a bracket class body into a residue mask.
 """
-function _class_mask(raw::AbstractString, options::ComparisonOptions)
+function _class_mask(raw::AbstractString, spec::_AlphabetSpec)
     isempty(raw) && throw(ArgumentError("Empty character class is not allowed."))
     # `[^...]` syntax means "all residues except listed residues".
     invert = startswith(raw, "^")
@@ -118,24 +118,24 @@ function _class_mask(raw::AbstractString, options::ComparisonOptions)
     mask = ResidueMask(0)
     for char in body
         # Class set is the union of member residue bits.
-        mask |= _mask_from_char(char, options)
+        mask |= _mask_from_char(char, spec)
     end
     if invert
         # Complement inside alphabet domain only.
-        mask = options.alphabet_mask & ~mask
+        mask = spec.mask & ~mask
     end
     mask == 0 && throw(ArgumentError("Character class resolves to an empty set."))
     return mask
 end
 
 """
-    _mask_to_chars(mask::ResidueMask, options::ComparisonOptions; as_lowercase = false) -> Vector{Char}
+    _mask_to_chars(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase = false)::Vector{Char}
 
 Materialize residues represented by a mask in canonical alphabet order.
 """
-function _mask_to_chars(mask::ResidueMask, options::ComparisonOptions; as_lowercase::Bool = false)
+function _mask_to_chars(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase::Bool = false)
     chars = Char[]
-    for (i, aa) in enumerate(options.alphabet)
+    for (i, aa) in enumerate(spec.chars)
         # Emit residues in canonical alphabet order for deterministic normalization.
         if (mask & (ResidueMask(1) << (i - 1))) != 0
             push!(chars, as_lowercase ? Base.lowercase(aa) : aa)
@@ -145,27 +145,27 @@ function _mask_to_chars(mask::ResidueMask, options::ComparisonOptions; as_lowerc
 end
 
 """
-    _mask_to_symbol(mask::ResidueMask, options::ComparisonOptions; as_lowercase = false, wildcard_symbol = "x") -> String
+    _mask_to_symbol(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase = false, wildcard_symbol = "x")::String
 
 Render one residue mask as canonical motif syntax.
 """
-function _mask_to_symbol(mask::ResidueMask, options::ComparisonOptions;
+function _mask_to_symbol(mask::ResidueMask, spec::_AlphabetSpec;
         as_lowercase::Bool = false, wildcard_symbol::String = "x")
     # Full mask is represented as wildcard, not as long explicit class.
-    if mask == options.alphabet_mask
+    if mask == spec.mask
         return as_lowercase ? Base.lowercase(wildcard_symbol) : wildcard_symbol
     end
-    chars = _mask_to_chars(mask, options; as_lowercase = as_lowercase)
+    chars = _mask_to_chars(mask, spec; as_lowercase = as_lowercase)
     length(chars) == 1 && return string(chars[1])
     return "[" * join(chars) * "]"
 end
 
 """
-    _canonical_token(position::_Position, options::ComparisonOptions) -> String
+    _canonical_token(position::_Position, spec::_AlphabetSpec)::String
 
 Render one parsed position into deterministic canonical motif syntax.
 """
-function _canonical_token(position::_Position, options::ComparisonOptions)
+function _canonical_token(position::_Position, spec::_AlphabetSpec)
     # Keep termini canonicalized exactly as anchors.
     if position.kind == _NTERMINUS
         return "^"
@@ -173,7 +173,7 @@ function _canonical_token(position::_Position, options::ComparisonOptions)
         return "\$"
     end
     # Residues/classes canonicalize through mask representation.
-    return _mask_to_symbol(position.mask, options; as_lowercase = false, wildcard_symbol = "x")
+    return _mask_to_symbol(position.mask, spec; as_lowercase = false, wildcard_symbol = "x")
 end
 
 # -----------------------------------------------------------------------------
@@ -285,7 +285,7 @@ function _expand_grouped_motif(text::AbstractString)
     return cleaned
 end
 
-function _parse_linear_tokens(motif::AbstractString, options::ComparisonOptions)
+function _parse_linear_tokens(motif::AbstractString, spec::_AlphabetSpec)
     tokens = _Token[]
     i = firstindex(motif)
     while i <= lastindex(motif)
@@ -303,18 +303,18 @@ function _parse_linear_tokens(motif::AbstractString, options::ComparisonOptions)
             _Position(_CTERMINUS, 0)
         elseif char == 'x' || char == 'X' || char == '.'
             # Wildcards match any residue in the selected alphabet.
-            _Position(_RESIDUE, options.alphabet_mask)
+            _Position(_RESIDUE, spec.mask)
         elseif char == '['
             # Class token includes everything until the first closing bracket.
             close_idx = findnext(==(']'), motif, nextind(motif, i))
             close_idx === nothing &&
                 throw(ArgumentError("Unclosed character class in motif: $motif"))
             class_raw = motif[nextind(motif, i):prevind(motif, close_idx)]
-            mask = _class_mask(class_raw, options)
+            mask = _class_mask(class_raw, spec)
             i = close_idx
             _Position(_RESIDUE, mask)
         else
-            _Position(_RESIDUE, _mask_from_char(char, options))
+            _Position(_RESIDUE, _mask_from_char(char, spec))
         end
 
         repeat_min, repeat_max,
@@ -329,7 +329,7 @@ function _parse_linear_tokens(motif::AbstractString, options::ComparisonOptions)
             continue
         end
 
-        canonical = _canonical_token(position, options)
+        canonical = _canonical_token(position, spec)
         if repeat_min == 1 && repeat_max == 1
             # no quantifier suffix
         elseif repeat_min == repeat_max
@@ -349,7 +349,7 @@ function _parse_linear_tokens(motif::AbstractString, options::ComparisonOptions)
 end
 
 """
-    _parse_motif(motif::AbstractString, options::ComparisonOptions) -> _ParsedMotif
+    _parse_motif(motif::AbstractString, options::ComparisonOptions)::_ParsedMotif
 
 Parse one motif string into canonical internal representation.
 """
@@ -357,11 +357,12 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
     stripped = strip(motif)
     isempty(stripped) && throw(ArgumentError("Motif cannot be empty."))
 
+    spec = _alphabet_spec(options.alphabet)
     branches = _expand_grouped_motif(stripped)
     alternatives = Vector{_Token}[]
     normalized_branches = String[]
     for branch in branches
-        branch_tokens = _parse_linear_tokens(branch, options)
+        branch_tokens = _parse_linear_tokens(branch, spec)
         push!(alternatives, branch_tokens)
         push!(normalized_branches, _normalized_from_tokens(branch_tokens))
     end
@@ -374,7 +375,7 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
 end
 
 """
-    _variant_count(tokens::Vector{_Token}) -> BigInt
+    _variant_count(tokens::Vector{_Token})::BigInt
 
 Return the number of expanded variants implied by repeat ranges.
 """
@@ -388,11 +389,11 @@ function _variant_count(tokens::Vector{_Token})
 end
 
 """
-    _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions) -> Vector{_MotifVariant}
+    _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions, spec::_AlphabetSpec)::Vector{_MotifVariant}
 
 Expand ranged-repeat motifs into concrete variant sequences.
 """
-function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
+function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions, spec::_AlphabetSpec)
     nvariants = big(0)
     for tokens in parsed.alternatives
         nvariants += _variant_count(tokens)
@@ -412,13 +413,13 @@ function _expand_variants(parsed::_ParsedMotif, options::ComparisonOptions)
             # Compute total motif information from concrete expanded positions.
             info = 0.0
             for pos in positions
-                info += _position_ic(pos, options)
+                info += _position_ic(pos, spec)
             end
             push!(variants, _MotifVariant(copy(positions), join(symbols), info))
             return
         end
         token = tokens[ti]
-        token_symbol = _canonical_token(token.position, options)
+        token_symbol = _canonical_token(token.position, spec)
         for repeat in token.min_repeat:token.max_repeat
             # Append repeated token positions for this branch, recurse, then backtrack.
             append_count = 0

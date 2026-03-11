@@ -66,13 +66,6 @@ Used by the `matchfix` keyword in [`ComparisonOptions`](@ref).
 end
 
 """
-    ResidueMask
-
-Bit-mask representation used for residue-set operations.
-"""
-const ResidueMask = UInt32
-
-"""
     ResidueClass
 
 Residue set encoded as a [`ResidueMask`](@ref).
@@ -102,6 +95,17 @@ end
 # - normalized canonical text,
 # - token sequence with possible repeat ranges,
 # - branch alternatives for `(motif1)|(motif2)`-style motifs.
+"""
+    _ParsedMotif
+
+Internal parsed representation of one user-supplied motif.
+
+Fields:
+- `original`: motif text exactly as supplied by the caller.
+- `normalized`: canonical motif text used for deterministic comparisons.
+- `tokens`: token sequence for the first parsed branch.
+- `alternatives`: token sequence for every expanded top-level alternation branch.
+"""
 struct _ParsedMotif
     original::String
     normalized::String
@@ -111,6 +115,16 @@ end
 
 # Expanded motif variant after resolving repeat ranges.
 # `positions` is the concrete position sequence used for alignment.
+"""
+    _MotifVariant
+
+Concrete motif variant obtained after expanding bounded repeat ranges.
+
+Fields:
+- `positions`: fixed sequence of parsed positions used during alignment.
+- `normalized`: canonical motif text for this expanded variant.
+- `information`: total information content of the variant.
+"""
 struct _MotifVariant
     positions::Vector{_Position}
     normalized::String
@@ -126,7 +140,8 @@ Construct once with [`ComparisonOptions(; kwargs...)`](@ref) and reuse across
 many [`compare`](@ref) calls.
 
 # Keywords
-- `alphabet::Symbol = :protein`: comparison alphabet (`:protein`, `:dna`, or `:rna`).
+- `alphabet = ProteinAlphabet()`: comparison alphabet (`ProteinAlphabet()`,
+  `DNAAlphabet()`, or `RNAAlphabet()`).
 - `min_shared_positions::Int = 2`: minimum number of matched, non-wildcard
   positions required for a hit.
 - `normalized_ic_cutoff::Real = 0.5`: minimum normalized information content.
@@ -142,23 +157,20 @@ many [`compare`](@ref) calls.
 ```jldoctest
 julia> using CompariMotif
 
-julia> opts = ComparisonOptions(; alphabet = :rna);
+julia> options = ComparisonOptions();
 
-julia> String(opts.alphabet)
-"ACGU"
+julia> options.alphabet isa ProteinAlphabet
+true
+
+julia> options.matchfix == MatchFixNone
+true
 ```
 
 See also [`MatchFixMode`](@ref), [`compare`](@ref), [`ComparisonResult`](@ref).
 """
 struct ComparisonOptions
-    # Ordered alphabet used for mask generation and IC scaling.
-    alphabet::Vector{Char}
-    # Maps residue character -> 1-based bit position.
-    alphabet_index::Dict{Char, Int}
-    # Bitmask with all alphabet residues enabled (wildcard mask).
-    alphabet_mask::ResidueMask
-    # Precomputed log base for IC normalization (`log(N)`).
-    log_base::Float64
+    # Public alphabet selector used to reconstruct or display the configuration.
+    alphabet::_AlphabetValue
     # Minimum matched non-wildcard positions for a valid hit.
     min_shared_positions::Int
     # Minimum normalized information score for a valid hit.
@@ -175,36 +187,39 @@ end
 
 @def_pprint mime_types="text/plain" base_show=true ComparisonOptions
 
+@inline _alphabet_spec(options::ComparisonOptions) = _alphabet_spec(options.alphabet)
+
 """
-    overlaps(a::ResidueClass, b::ResidueClass) -> Bool
+    overlaps(a::ResidueClass, b::ResidueClass)::Bool
 
 Return `true` when two residue classes share at least one residue.
 """
 @inline overlaps(a::ResidueClass, b::ResidueClass) = !iszero(a.mask & b.mask)
 
 """
-    unionclass(a::ResidueClass, b::ResidueClass) -> ResidueClass
+    unionclass(a::ResidueClass, b::ResidueClass)::ResidueClass
 
 Return the set-union of two residue classes.
 """
 @inline unionclass(a::ResidueClass, b::ResidueClass) = ResidueClass(a.mask | b.mask)
 
 """
-    is_subset(a::ResidueClass, b::ResidueClass) -> Bool
+    is_subset(a::ResidueClass, b::ResidueClass)::Bool
 
 Return `true` when every residue in `a` is also in `b`.
 """
 @inline is_subset(a::ResidueClass, b::ResidueClass) = iszero(a.mask & ~b.mask)
 
 """
-    is_wildcard(a::ResidueClass, opts::ComparisonOptions) -> Bool
+    is_wildcard(a::ResidueClass, opts::ComparisonOptions)::Bool
 
 Return `true` when the residue class spans the full selected alphabet.
 """
-@inline is_wildcard(a::ResidueClass, opts::ComparisonOptions) = a.mask == opts.alphabet_mask
+@inline is_wildcard(a::ResidueClass, opts::ComparisonOptions) = a.mask ==
+                                                                _alphabet_spec(opts.alphabet).mask
 
 """
-    is_fixed(a::ResidueClass) -> Bool
+    is_fixed(a::ResidueClass)::Bool
 
 Return `true` when the residue class contains exactly one residue.
 """

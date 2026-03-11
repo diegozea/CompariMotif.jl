@@ -1,5 +1,5 @@
 """
-    normalize_motif(motif::AbstractString; alphabet::Symbol = :protein) -> String
+    normalize_motif(motif::AbstractString; alphabet = ProteinAlphabet())::String
 
 Parse and canonicalize a motif expression into a deterministic representation.
 Supported syntax includes fixed residues from the selected alphabet, bracket
@@ -8,7 +8,8 @@ classes (including negation), `x`/`X`/`.` wildcards, `^`/`\$` termini, and
 `|` are also supported.
 
 Wildcard tokens `x`, `X`, and `.` are equivalent and each means "any residue"
-in the selected alphabet (`:protein`, `:dna`, or `:rna`).
+in the selected alphabet (`ProteinAlphabet()`, `DNAAlphabet()`, or
+`RNAAlphabet()`).
 
 # Examples
 ```jldoctest
@@ -21,7 +22,7 @@ julia> normalize_motif("r[kR].{0,1}l")
 $(_DOC_OPTIONS_REF)
 $(_DOC_COMPARE_REF)
 """
-function normalize_motif(motif::AbstractString; alphabet::Symbol = :protein)
+function normalize_motif(motif::AbstractString; alphabet::_AlphabetValue = ProteinAlphabet())
     # Reuse the normal parser pipeline with permissive thresholds.
     # `normalize_motif` only needs deterministic parsing/canonicalization.
     options = ComparisonOptions(; alphabet, min_shared_positions = 1, normalized_ic_cutoff = 0.0)
@@ -29,12 +30,12 @@ function normalize_motif(motif::AbstractString; alphabet::Symbol = :protein)
 end
 
 """
-    compare(a::AbstractString, b::AbstractString, options::ComparisonOptions) -> ComparisonResult
+    compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult
     compare(motifs::AbstractVector{<:AbstractString},
             db::AbstractVector{<:AbstractString},
-            options::ComparisonOptions) -> Matrix{ComparisonResult}
+            options::ComparisonOptions)::Matrix{ComparisonResult}
     compare(motifs::AbstractVector{<:AbstractString},
-            options::ComparisonOptions) -> Matrix{ComparisonResult}
+            options::ComparisonOptions)::Matrix{ComparisonResult}
 
 Compare motifs according to the CompariMotif scoring scheme described in
 Edwards et al. (2008).
@@ -64,7 +65,7 @@ $(_DOC_TABLE_REF)
 function compare end
 
 """
-    compare(a::AbstractString, b::AbstractString, options::ComparisonOptions) -> ComparisonResult
+    compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult
 
 Pairwise motif comparison.
 """
@@ -76,7 +77,7 @@ function compare(a::AbstractString, b::AbstractString, options::ComparisonOption
 end
 
 """
-    compare(motifs, db, options) -> Matrix{ComparisonResult}
+    compare(motifs, db, options)::Matrix{ComparisonResult}
 
 Compare all query motifs against all search-database motifs.
 """
@@ -100,7 +101,7 @@ function compare(
 end
 
 """
-    compare(motifs, options) -> Matrix{ComparisonResult}
+    compare(motifs, options)::Matrix{ComparisonResult}
 
 Convenience all-vs-all matrix mode.
 """

@@ -1,8 +1,14 @@
-# Canonical alphabets used by the parser and IC calculations.
-# The order is stable and intentionally used as bit-index order in residue masks.
-const _PROTEIN_ALPHABET = collect("ARNDCQEGHILKMFPSTWYV")
-const _DNA_ALPHABET = collect("ACGT")
-const _RNA_ALPHABET = collect("ACGU")
+"""
+    ResidueMask
+
+Bit-mask representation used for residue-set operations.
+"""
+const ResidueMask = UInt32
+
+# Amino acid and nucleotide residue alphabets.
+const _ProteinAlphabetString = "ARNDCQEGHILKMFPSTWYV"
+const _DNAAlphabetString = "ACGT"
+const _RNAAlphabetString = "ACGU"
 
 # Shared docstring snippets to keep user-facing documentation consistent
 # across `normalize_motif`, `compare`, and `to_column_table`.

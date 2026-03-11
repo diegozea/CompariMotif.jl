@@ -1,12 +1,12 @@
 """
-    _coerce_matchfix(mode::MatchFixMode) -> MatchFixMode
+    _coerce_matchfix(mode::MatchFixMode)::MatchFixMode
 
 Return the match-fix mode unchanged.
 """
 _coerce_matchfix(mode::MatchFixMode) = mode
 
 """
-    _coerce_matchfix(mode::Symbol) -> MatchFixMode
+    _coerce_matchfix(mode::Symbol)::MatchFixMode
 
 Normalize symbol aliases into a concrete [`MatchFixMode`](@ref).
 """
@@ -25,7 +25,7 @@ function _coerce_matchfix(mode::Symbol)
 end
 
 """
-    _coerce_matchfix(mode::AbstractString) -> MatchFixMode
+    _coerce_matchfix(mode::AbstractString)::MatchFixMode
 
 Normalize string aliases into a concrete [`MatchFixMode`](@ref).
 """
@@ -35,21 +35,19 @@ function _coerce_matchfix(mode::AbstractString)
 end
 
 """
-    ComparisonOptions(; kwargs...) -> ComparisonOptions
+    ComparisonOptions(; kwargs...)::ComparisonOptions
 
 Construct a reusable options object for motif comparisons.
 
 ```jldoctest
 julia> using CompariMotif
 
-julia> opts = ComparisonOptions(; alphabet = :dna, min_shared_positions = 1);
-
-julia> String(opts.alphabet)
-"ACGT"
+julia> ComparisonOptions(; alphabet = DNAAlphabet()).alphabet isa DNAAlphabet
+true
 ```
 """
 function ComparisonOptions(;
-        alphabet::Symbol = :protein,
+        alphabet::_AlphabetValue = ProteinAlphabet(),
         min_shared_positions::Int = 2,
         normalized_ic_cutoff::Real = 0.5,
         matchfix::Union{MatchFixMode, Symbol, AbstractString} = MatchFixNone,
@@ -72,32 +70,10 @@ function ComparisonOptions(;
         throw(ArgumentError("`max_variants` must be >= 1."))
     end
 
-    # Choose alphabet once and use it for both parser masks and IC formulas.
-    alphabet_chars = if alphabet === :protein
-        _PROTEIN_ALPHABET
-    elseif alphabet === :dna
-        _DNA_ALPHABET
-    elseif alphabet === :rna
-        _RNA_ALPHABET
-    else
-        throw(ArgumentError("`alphabet` must be :protein, :dna or :rna."))
-    end
-
-    # Build 1-based residue index -> bit index map.
-    index = Dict{Char, Int}()
-    for (i, aa) in enumerate(alphabet_chars)
-        index[aa] = i
-    end
-    # Full alphabet mask: every residue bit set to one.
-    mask = ResidueMask((1 << length(alphabet_chars)) - 1)
-
     return ComparisonOptions(
-        alphabet_chars,
-        index,
-        mask,
-        log(length(alphabet_chars)),
+        alphabet,
         min_shared_positions,
-        float(normalized_ic_cutoff),
+        Float64(normalized_ic_cutoff),
         matchfix_mode,
         mismatches,
         allow_ambiguous_overlap,
