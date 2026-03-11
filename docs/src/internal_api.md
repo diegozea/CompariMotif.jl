@@ -9,8 +9,7 @@ private and may change between releases; the stable package contract is the
 [External API](external_api.md).
 
 The running example below mirrors the worked comparison in Figure 1 of
-Edwards, Davey, and Shields (2008), *Bioinformatics* 24(10):1307-1309,
-[doi:10.1093/bioinformatics/btn105](https://doi.org/10.1093/bioinformatics/btn105).
+[Edwards2008CompariMotif](@citet).
 
 ## Pipeline Overview
 

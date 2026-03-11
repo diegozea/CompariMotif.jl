@@ -56,6 +56,9 @@ julia> result.matched
 true
 ```
 
+# References
+* [Edwards2008CompariMotif](@cite) Edwards et al. Bioinformatics 24(10):1307-1309 (2008)
+
 $(_DOC_OPTIONS_REF)
 $(_DOC_VARIANT_SIZE_REF)
 $(_DOC_RESULT_REF)
