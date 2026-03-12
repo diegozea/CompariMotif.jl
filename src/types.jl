@@ -62,24 +62,6 @@ end
 end
 
 """
-    MatchFixMode
-
-Fixed-position matching behavior used by CompariMotif:
-- `MatchFixNone`: no fixed-position requirement.
-- `MatchFixQueryFixed`: fixed query positions must have exact fixed matches.
-- `MatchFixSearchFixed`: fixed search positions must have exact fixed matches.
-- `MatchFixBothFixed`: enforce fixed-position matching on both motifs.
-
-Used by the `matchfix` keyword in [`ComparisonOptions`](@ref).
-"""
-@enum MatchFixMode::UInt8 begin
-    MatchFixNone = 0
-    MatchFixQueryFixed = 1
-    MatchFixSearchFixed = 2
-    MatchFixBothFixed = 3
-end
-
-"""
     ResidueClass
 
 Residue set encoded as a [`ResidueMask`](@ref).
@@ -164,9 +146,8 @@ many [`compare`](@ref) calls.
 - `min_shared_positions::Int = 2`: minimum number of matched, non-wildcard
   positions required for a hit.
 - `normalized_ic_cutoff::Real = 0.5`: minimum normalized information content.
-- `matchfix::Union{MatchFixMode, Symbol, AbstractString} = MatchFixNone`:
-  fixed-position matching mode. Accepted symbol/string aliases are:
-  `none`, `query_fixed` (`query`), `search_fixed` (`search`), `both_fixed` (`both`).
+- `matchfix::Symbol = :none`: fixed-position matching mode. Accepted values are
+  exactly `:none`, `:query_fixed`, `:search_fixed`, and `:both_fixed`.
 - `mismatches::Int = 0`: tolerated count of defined-position mismatches.
 - `allow_ambiguous_overlap::Bool = true`: whether partial class overlaps are
   allowed as complex matches.
@@ -181,11 +162,11 @@ julia> options = ComparisonOptions();
 julia> options.alphabet isa ProteinAlphabet
 true
 
-julia> options.matchfix == MatchFixNone
+julia> options.matchfix == :none
 true
 ```
 
-See also [`MatchFixMode`](@ref), [`compare`](@ref), [`ComparisonResult`](@ref).
+See also [`compare`](@ref), [`ComparisonResult`](@ref).
 """
 struct ComparisonOptions
     # Public alphabet selector used to reconstruct or display the configuration.
@@ -196,14 +177,36 @@ struct ComparisonOptions
     min_shared_positions::Int
     # Minimum normalized information score for a valid hit.
     normalized_ic_cutoff::Float64
-    # Fixed-position matching policy.
-    matchfix::MatchFixMode
+    # Fixed-position matching policy: :none, :query_fixed, :search_fixed or :both_fixed
+    matchfix::Symbol
     # Allowed number of mismatch positions inside an overlap.
     mismatches::Int
     # Whether partial overlap of two ambiguous sets is allowed.
     allow_ambiguous_overlap::Bool
     # Safety limit for repeat expansion combinatorics.
     max_variants::Int
+
+    function ComparisonOptions(
+            alphabet::_AlphabetValue,
+            residue_frequencies::Union{Nothing, Dict{Char, Float64}},
+            min_shared_positions::Int,
+            normalized_ic_cutoff::Float64,
+            matchfix::Symbol,
+            mismatches::Int,
+            allow_ambiguous_overlap::Bool,
+            max_variants::Int
+    )
+        return new(
+            alphabet,
+            residue_frequencies,
+            min_shared_positions,
+            normalized_ic_cutoff,
+            _coerce_matchfix(matchfix),
+            mismatches,
+            allow_ambiguous_overlap,
+            max_variants
+        )
+    end
 end
 
 @def_pprint mime_types="text/plain" base_show=true ComparisonOptions

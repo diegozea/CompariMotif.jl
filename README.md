@@ -134,7 +134,7 @@ Compared against the upstream CompariMotif oracle as a black-box executable
 
 - `min_shared_positions = 2` (`minshare=2`)
 - `normalized_ic_cutoff = 0.5` (`normcut=0.5`)
-- `matchfix = MatchFixNone` (`matchfix=0`)
+- `matchfix = :none` (`matchfix=0`)
 - `mismatches = 0`
 - `allow_ambiguous_overlap = true` (`overlaps=T`)
 

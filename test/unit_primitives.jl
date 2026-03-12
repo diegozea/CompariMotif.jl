@@ -401,14 +401,14 @@ end
     qfixed_options = ComparisonOptions(;
         min_shared_positions = 1,
         normalized_ic_cutoff = 0.0,
-        matchfix = MatchFixQueryFixed)
+        matchfix = :query_fixed)
     qfixed = compare("AK", "A.", qfixed_options)
     @test !qfixed.matched
 
     sfixed_options = ComparisonOptions(;
         min_shared_positions = 1,
         normalized_ic_cutoff = 0.0,
-        matchfix = MatchFixSearchFixed)
+        matchfix = :search_fixed)
     sfixed = compare("A.", "AK", sfixed_options)
     @test !sfixed.matched
 
@@ -437,7 +437,7 @@ end
     @test compare("QRSTAA", "AAMNPQ", ComparisonOptions(; normalized_ic_cutoff = 0.0)).matched
 
     @test compare("AKL", "A.L", defaults).matched
-    @test !compare("AKL", "A.L", ComparisonOptions(; matchfix = MatchFixQueryFixed)).matched
+    @test !compare("AKL", "A.L", ComparisonOptions(; matchfix = :query_fixed)).matched
 
     @test !compare("AKL", "AQL", defaults).matched
     @test compare("AKL", "AQL", ComparisonOptions(; mismatches = 1)).matched
@@ -450,6 +450,89 @@ end
         "A[RQ]",
         ComparisonOptions(; allow_ambiguous_overlap = false)
     ).matched
+end
+
+@testitem "matchfix validation" begin
+    using Test
+    using CompariMotif
+
+    @test ComparisonOptions(; matchfix = :none).matchfix == :none
+    @test ComparisonOptions(; matchfix = :query_fixed).matchfix == :query_fixed
+    @test ComparisonOptions(; matchfix = :search_fixed).matchfix == :search_fixed
+    @test ComparisonOptions(; matchfix = :both_fixed).matchfix == :both_fixed
+    @test ComparisonOptions(
+        ProteinAlphabet(),
+        nothing,
+        2,
+        0.5,
+        :both_fixed,
+        0,
+        true,
+        10_000
+    ).matchfix == :both_fixed
+    @test ComparisonOptions(
+        ProteinAlphabet(),
+        nothing,
+        2,
+        0,
+        :none,
+        0,
+        true,
+        10_000
+    ).normalized_ic_cutoff == 0.0
+
+    integer_frequencies = Dict(aa => 1 for aa in collect("ACDEFGHIKLMNPQRSTVWY"))
+    positional_frequencies = ComparisonOptions(
+        ProteinAlphabet(),
+        integer_frequencies,
+        2,
+        0.5,
+        :none,
+        0,
+        true,
+        10_000
+    ).residue_frequencies
+    @test positional_frequencies isa Dict{Char, Float64}
+    @test positional_frequencies !== nothing
+    @test isapprox(sum(values(positional_frequencies)), 1.0)
+    @test all(values(positional_frequencies) .≈ 0.05)
+
+    expected_message = "`matchfix` must be one of :none, :query_fixed, :search_fixed, :both_fixed."
+
+    invalid_symbol = try
+        ComparisonOptions(; matchfix = :query)
+        nothing
+    catch err
+        err
+    end
+    @test invalid_symbol isa ArgumentError
+    @test occursin(expected_message, sprint(showerror, invalid_symbol))
+
+    invalid_string = try
+        ComparisonOptions(; matchfix = "query_fixed")
+        nothing
+    catch err
+        err
+    end
+    @test invalid_string isa TypeError
+
+    invalid_positional = try
+        ComparisonOptions(ProteinAlphabet(), nothing, 2, 0.5, :query, 0, true, 10_000)
+        nothing
+    catch err
+        err
+    end
+    @test invalid_positional isa ArgumentError
+    @test occursin(expected_message, sprint(showerror, invalid_positional))
+
+    invalid_runtime = try
+        CompariMotif._query_fixed_required(:query)
+        nothing
+    catch err
+        err
+    end
+    @test invalid_runtime isa ArgumentError
+    @test occursin(expected_message, sprint(showerror, invalid_runtime))
 end
 
 @testitem "matrix APIs" begin

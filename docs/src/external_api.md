@@ -124,7 +124,6 @@ precise meaning of an option, result field, or helper function.
 ProteinAlphabet
 DNAAlphabet
 RNAAlphabet
-MatchFixMode
 ComparisonOptions
 ComparisonResult
 normalize_motif

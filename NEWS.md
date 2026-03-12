@@ -14,6 +14,10 @@
 - *[Breaking change]* `ComparisonOptions` now keeps the selected alphabet marker in the public
   struct and display output instead of exposing derived internal alphabet
   caches.
+- *[Breaking change]* `ComparisonOptions.matchfix` now uses symbols instead of
+  the exported `MatchFixMode` enum and enum values.
+  - Valid values are exactly `:none`, `:query_fixed`, `:search_fixed`, and `:both_fixed`.
+  - Strings and legacy enum names are no longer accepted.
 - Added support for non-uniform residue frequencies through
   `ComparisonOptions(; residue_frequencies = ...)`, so information-content
   scoring can use a custom DNA, RNA, or protein background model instead of a

@@ -136,23 +136,33 @@ function _compare_positions(
 end
 
 """
-    _query_fixed_required(mode::MatchFixMode)::Bool
+    _query_fixed_required(mode::Symbol)::Bool
 
 Return `true` when query fixed residues must match exactly.
 """
-function _query_fixed_required(mode::MatchFixMode)
+function _query_fixed_required(mode::Symbol)
     # Query fixed constraints apply in QueryFixed and BothFixed modes.
-    mode == MatchFixQueryFixed || mode == MatchFixBothFixed
+    if mode === :query_fixed || mode === :both_fixed
+        return true
+    elseif mode === :none || mode === :search_fixed
+        return false
+    end
+    throw(_matchfix_argument_error())
 end
 
 """
-    _search_fixed_required(mode::MatchFixMode)::Bool
+    _search_fixed_required(mode::Symbol)::Bool
 
 Return `true` when search fixed residues must match exactly.
 """
-function _search_fixed_required(mode::MatchFixMode)
+function _search_fixed_required(mode::Symbol)
     # Search fixed constraints apply in SearchFixed and BothFixed modes.
-    mode == MatchFixSearchFixed || mode == MatchFixBothFixed
+    if mode === :search_fixed || mode === :both_fixed
+        return true
+    elseif mode === :none || mode === :query_fixed
+        return false
+    end
+    throw(_matchfix_argument_error())
 end
 
 """
