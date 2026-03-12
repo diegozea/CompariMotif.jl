@@ -87,6 +87,27 @@ aim to replicate the full SLiMSuite application surface. In particular:
 - no `Name*`/`Desc*` metadata fields in API results or fixtures (regex motifs only);
 - no XGMML/network export outputs.
 
+#### Implementation notes compared to the paper
+
+This package remains close to the pipeline described in CompariMotif's paper, but a few 
+implementation choices differ intentionally:
+
+- No explicit _"enough common amino acids (in any position)"_ prefilter is applied before 
+  the sliding-window comparison. Local Julia benchmarking indicated that adding this 
+  prefilter increased overall runtime instead of improving performance.
+- Exact and exact-subsequence matches do not short-circuit the search. They initialize the 
+  current best candidate, but all sliding-window overlaps are still evaluated so that a 
+  stronger overlap from another shift or an expanded motif variant can still be selected.
+- For partial overlaps between ambiguous residue classes, the wording in the paper can be 
+  interpreted as using the lower information content (IC) of the two positions. However, 
+  the upstream black-box oracle behaves as if the information content of the union residue 
+  class is used instead. This implementation follows the oracle behavior for scoring 
+  while retaining the paper’s `Complex` relationship terminology rather than the 
+  oracle’s `Ugly` label.
+- Ranged repeats and alternations are expanded into concrete motif variants. This 
+  expansion is limited by `max_variants` in `ComparisonOptions` (default `10_000`) to 
+  prevent pathological combinatorial growth.
+
 ### Fixtures and oracle regeneration
 
 Oracle fixtures, i.e. expected results for black-box tests, are committed under 
