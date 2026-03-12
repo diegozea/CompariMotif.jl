@@ -1,5 +1,11 @@
 # CompariMotif.jl
 
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://diegozea.github.io/CompariMotif.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://diegozea.github.io/CompariMotif.jl/dev)
+[![CI](https://github.com/diegozea/CompariMotif.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/diegozea/CompariMotif.jl/actions/workflows/CI.yml)
+[![Coverage Status](https://coveralls.io/repos/github/diegozea/CompariMotif.jl/badge.svg?branch=main)](https://coveralls.io/github/diegozea/CompariMotif.jl?branch=main)
+[![codecov](https://codecov.io/gh/diegozea/CompariMotif.jl/graph/badge.svg?branch=main)](https://codecov.io/gh/diegozea/CompariMotif.jl?branch=main)
+
 Clean-room, unofficial Julia implementation of the motif–motif comparison strategy 
 described by Edwards, Davey and Shields (Bioinformatics 24(10):1307–1309, 2008). It 
 supports the comparison of protein, DNA and RNA motifs, represented as regular 
@@ -30,6 +36,12 @@ df = DataFrame(table)
 ```
 
 `to_column_table` output can also be written with `CSV.write("comparimotif_results.tsv", table)`.
+
+## Interpreting results
+
+See [`Interpreting ComparisonResult`](https://diegozea.github.io/CompariMotif.jl/external_api/#Interpreting-ComparisonResult)
+in the external API documentation for the full explanation of relationship
+labels, scoring fields, and tabular output columns.
 
 ## Non-uniform residue frequencies
 

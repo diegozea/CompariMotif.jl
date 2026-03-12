@@ -85,8 +85,9 @@ found_precise
 Alignment scoring evaluates one query variant against one search variant at a
 specific relative shift. Each candidate carries the matched pattern, matched
 positions, relationship labels, and the information-content-derived metrics
-used for ranking, including `match_ic`, `normalized_ic`, `core_ic`, and the
-final `score`.
+used for ranking. The current implementation orders candidates by higher
+`match_ic`, then `matched_positions`, then `score`; `normalized_ic`, `core_ic`,
+and `score` are still materialized on the candidate for inspection and output.
 
 ```@repl internal_api_pipeline
 query_variant = query_variants[2];

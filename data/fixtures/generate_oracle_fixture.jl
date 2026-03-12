@@ -52,6 +52,14 @@ const FIXTURE_SPECS = (
         aafreq = nothing
     ),
     (
+        name = "score_tiebreak",
+        motif_set = joinpath(FIXTURES_DIR, "score_tiebreak_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_score_tiebreak_probe_normalized.tsv"),
+        columns = ALTERNATION_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing
+    ),
+    (
         name = "nonuniform",
         motif_set = joinpath(FIXTURES_DIR, "nonuniform_probe_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_nonuniform_probe_normalized.tsv"),

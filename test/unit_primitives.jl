@@ -210,6 +210,36 @@ end
     @test branch_competition.search_relationship == "Degenerate Match"
     @test branch_competition.matched_pattern == "R[rk]L[iv]"
     @test branch_competition.matched_positions == 4
+
+    # When match_ic and matched_positions tie across expanded branches, the
+    # higher score should win even if it was encountered later in search order.
+    zero_fixed_tiebreak = compare("A", "[AC][AC]|[AC]", options)
+    @test zero_fixed_tiebreak.matched
+    @test zero_fixed_tiebreak.query_relationship == "Variant Match"
+    @test zero_fixed_tiebreak.search_relationship == "Degenerate Match"
+    @test zero_fixed_tiebreak.score ≈ 1.0 atol = 1e-12
+    @test zero_fixed_tiebreak.search_information ≈ 0.7686217868402407 atol = 1e-12
+
+    nonzero_fixed_tiebreak = compare("AC", "AA|[AC]A", options)
+    @test nonzero_fixed_tiebreak.matched
+    @test nonzero_fixed_tiebreak.query_relationship == "Exact Overlap"
+    @test nonzero_fixed_tiebreak.search_relationship == "Exact Overlap"
+    @test nonzero_fixed_tiebreak.score ≈ 0.5654120103239064 atol = 1e-12
+    @test nonzero_fixed_tiebreak.search_information ≈ 1.7686217868402407 atol = 1e-12
+
+    shifted_nonzero_fixed_tiebreak = compare("CA", "AA|A[AC]", options)
+    @test shifted_nonzero_fixed_tiebreak.matched
+    @test shifted_nonzero_fixed_tiebreak.query_relationship == "Exact Overlap"
+    @test shifted_nonzero_fixed_tiebreak.search_relationship == "Exact Overlap"
+    @test shifted_nonzero_fixed_tiebreak.score ≈ 0.5654120103239064 atol = 1e-12
+    @test shifted_nonzero_fixed_tiebreak.search_information ≈ 1.7686217868402407 atol = 1e-12
+
+    subsequence_tiebreak = compare("AC", "AA|A", options)
+    @test subsequence_tiebreak.matched
+    @test subsequence_tiebreak.query_relationship == "Exact Parent"
+    @test subsequence_tiebreak.search_relationship == "Exact Subsequence"
+    @test subsequence_tiebreak.score ≈ 1.0 atol = 1e-12
+    @test subsequence_tiebreak.search_information ≈ 1.0 atol = 1e-12
 end
 
 @testitem "alphabet specs and options surface" begin

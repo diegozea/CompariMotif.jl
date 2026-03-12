@@ -287,8 +287,8 @@ end
 """
     _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})::Bool
 
-Apply deterministic candidate ordering:
-1) higher `match_ic`, 2) more matched positions, 3) more exact fixed matches.
+Apply deterministic candidate ordering: 1) higher `match_ic`, 2) more matched positions, 
+3) higher `score`, 4) more exact fixed matches.
 """
 function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     best === nothing && return true
@@ -297,6 +297,9 @@ function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     end
     if candidate.matched_positions != best.matched_positions
         return candidate.matched_positions > best.matched_positions
+    end
+    if candidate.score != best.score
+        return candidate.score > best.score
     end
     if candidate.exact_fixed_matches != best.exact_fixed_matches
         return candidate.exact_fixed_matches > best.exact_fixed_matches

@@ -30,6 +30,46 @@ Then try a single pairwise comparison to see the main workflow. Create
 options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 result = compare("RKLI", "R[KR]L[IV]", options)
 ```
+
+## Interpreting `ComparisonResult`
+
+Each [`ComparisonResult`](@ref) summarizes the best accepted overlap between one
+query motif and one search motif. The relationship fields are directional:
+`query_relationship` uses the query as the reference point, while
+`search_relationship` describes the same alignment from the search side. That
+is why `Variant` and `Degenerate`, and `Parent` and `Subsequence`, normally
+appear as complementary pairs. For example, one side of a hit can read
+`Degenerate Parent` while the other reads `Variant Subsequence`.
+
+The first word in the relationship label explains how residue choices compare
+along the overlap: `Exact` means the aligned residue sets coincide, `Variant`
+means the query is narrower, `Degenerate` means the query is broader, and
+`Complex` means the overlap mixes those cases or uses partly overlapping
+ambiguous classes. The second word explains coverage: `Match` for full-length
+coverage on both motifs, `Parent` when the query contains the search,
+`Subsequence` when the query is contained in the search, and `Overlap` when the
+best hit uses only part of each motif. The nomenclature used here is identical to 
+that of [Edwards2008CompariMotif](@citet), which is nicely summarized in _Figure 2_.
+
+The score fields then tell you how strong that overlap is. `match_ic` is the
+raw information captured by the best alignment, `normalized_ic` puts that value
+on a comparable scale across motifs of different specificity, `core_ic` is the
+average information per aligned core position, and `score` combines
+`normalized_ic` with `matched_positions` for ranking. `matched_positions`
+counts informative aligned positions only, so positions where both motifs use a
+wildcard do not contribute to that total. `matched_pattern` is a compact
+rendering of the winning overlap: uppercase symbols usually mark clean exact
+agreement, whereas lowercase symbols mark positions broadened by ambiguity or
+wildcard handling.
+
+The same fields become table columns when you call [`to_column_table`](@ref).
+In that tabular form, `query` and `search` keep the original motif strings,
+while `normalized_query` and `normalized_search` expose the canonical forms
+used internally during comparison. Unmatched results keep `matched = false`,
+use `No Match` relationship labels, leave `matched_pattern` empty, and set
+`matched_positions`, all score fields, and both information totals to `0` or
+`0.0`.
+
 You can find more advanced examples of how to use this package in the
 [FAQ / How-To](@ref) section of the documentation.
 

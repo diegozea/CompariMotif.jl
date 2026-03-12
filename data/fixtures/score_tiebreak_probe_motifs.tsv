@@ -1,0 +1,14 @@
+# Motif set used to validate score-based tie-breaking against oracle-expanded variants.
+# Fixed order:
+# 1. A
+# 2. [AC][AC]|[AC]
+# 3. AC
+# 4. AA|[AC]A
+# 5. CA
+# 6. AA|A[AC]
+A
+[AC][AC]|[AC]
+AC
+AA|[AC]A
+CA
+AA|A[AC]

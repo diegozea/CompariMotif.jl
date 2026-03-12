@@ -7,14 +7,28 @@ Fields:
 - `query`, `search`: original input motifs.
 - `normalized_query`, `normalized_search`: canonicalized motifs used internally.
 - `matched`: whether the best-scoring valid alignment passed all thresholds.
-- `query_relationship`, `search_relationship`: human-readable relationship labels.
-- `matched_pattern`: consensus/overlap pattern for the selected alignment.
-- `matched_positions`: count of matched non-wildcard positions.
-- `match_ic`: total information content for matched positions.
-- `normalized_ic`: `match_ic` normalized by the lower motif information content.
-- `core_ic`: information content normalized by core overlap length.
+- `query_relationship`, `search_relationship`: directional two-word labels.
+  The first word describes specificity (`Exact`, `Variant`, `Degenerate`,
+  `Complex`); the second describes coverage (`Match`, `Parent`,
+  `Subsequence`, `Overlap`).
+- `matched_pattern`: compact rendering of the selected overlap; lowercase
+  symbols mark positions broadened by ambiguity or wildcard handling.
+- `matched_positions`: number of informative aligned positions; dual wildcards
+  are excluded.
+- `match_ic`: raw information content captured by the selected alignment.
+- `normalized_ic`: `match_ic` scaled by the less informative of the two motif
+  variants, making hits easier to compare across motif lengths and specificity.
+- `core_ic`: average information per aligned core position
+  (`match_ic / core_overlap_length`).
 - `score`: derived summary score (`normalized_ic * matched_positions`).
-- `query_information`, `search_information`: total information content per motif.
+- `query_information`, `search_information`: total information content for the
+  winning query and search motif variants.
+
+The relationship fields are asymmetric by design, so one side of the same hit
+can read `Variant Subsequence` while the other reads `Degenerate Parent`.
+When `matched == false`, the relationship labels are `No Match`,
+`matched_pattern` is empty, and all position/score/information totals stay at
+their zero defaults.
 
 See also [`ComparisonOptions`](@ref), [`normalize_motif`](@ref), [`to_column_table`](@ref).
 """

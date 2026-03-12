@@ -61,6 +61,11 @@ a column name and each value is a vector column.
 The returned object can be converted to a `DataFrame` or written using `CSV.write`
 without requiring either dependency in the package itself.
 
+Column names mirror the fields of [`ComparisonResult`](@ref). In matrix form,
+`query_index` and `search_index` preserve the original row/column coordinates,
+and the relationship/score columns can be interpreted exactly as on the
+underlying result objects.
+
 # Examples
 ```jldoctest
 julia> using CompariMotif
