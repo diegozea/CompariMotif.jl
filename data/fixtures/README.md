@@ -12,12 +12,16 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `score_tiebreak_probe_motifs.tsv`: motif set targeting branch/shift competitions that should be resolved by `Score` after `MatchIC` and `MatchPos`.
 - `nonuniform_probe_motifs.tsv`: motif set targeting non-uniform background-frequency scoring, including partial ambiguous overlaps that the oracle labels as `Ugly Match`.
 - `nonuniform_probe.aafreq.tsv`: strictly positive protein frequency table used for the non-uniform oracle probe.
+- `dna_probe_motifs.tsv`: DNA motif set covering the README/docs example plus wildcard, negation, overlap, and anchor corner cases.
+- `dna_nonuniform_probe.aafreq.tsv`: DNA frequency table (`A=0.3`, `C=0.2`, `G=0.2`, `T=0.3`) used for the weighted DNA oracle probe.
 - `oracle_regression_normalized.tsv`: normalized, deterministic oracle output used by tests.
 - `oracle_default_probe_normalized.tsv`: normalized oracle-default output used by tests.
 - `oracle_alternation_probe_normalized.tsv`: normalized oracle output for grouping/alternation tests.
 - `oracle_exact_prefilter_probe_normalized.tsv`: normalized oracle output for exact-match pre-pass parity tests.
 - `oracle_score_tiebreak_probe_normalized.tsv`: normalized oracle output for score-based tie-break tests.
 - `oracle_nonuniform_probe_normalized.tsv`: normalized oracle output for non-uniform frequency scoring tests.
+- `oracle_dna_probe_normalized.tsv`: normalized oracle output for uniform DNA scoring tests.
+- `oracle_dna_nonuniform_probe_normalized.tsv`: normalized oracle output for weighted DNA scoring tests.
 
 ## Prerequisites
 
@@ -46,6 +50,8 @@ oracle_alternation_probe_normalized.tsv
 oracle_exact_prefilter_probe_normalized.tsv
 oracle_score_tiebreak_probe_normalized.tsv
 oracle_nonuniform_probe_normalized.tsv
+oracle_dna_probe_normalized.tsv
+oracle_dna_nonuniform_probe_normalized.tsv
 ```
 
 To regenerate one fixture set only:
@@ -58,6 +64,8 @@ julia --project=. data/fixtures/generate_oracle_fixture.jl alternation
 julia --project=. data/fixtures/generate_oracle_fixture.jl exact_prefilter
 julia --project=. data/fixtures/generate_oracle_fixture.jl score_tiebreak
 julia --project=. data/fixtures/generate_oracle_fixture.jl nonuniform
+julia --project=. data/fixtures/generate_oracle_fixture.jl dna
+julia --project=. data/fixtures/generate_oracle_fixture.jl dna_nonuniform
 ```
 
 ### Oracle Default Probe Fixture

@@ -24,7 +24,8 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_regression_normalized.tsv"),
         columns = ORACLE_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
-        aafreq = nothing
+        aafreq = nothing,
+        dna = false
     ),
     (
         name = "defaults",
@@ -33,7 +34,8 @@ const FIXTURE_SPECS = (
         columns = ORACLE_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=2", "normcut=0.5", "matchfix=0",
             "mismatches=0", "overlaps=T", "xgmml=F"],
-        aafreq = nothing
+        aafreq = nothing,
+        dna = false
     ),
     (
         name = "alternation",
@@ -41,7 +43,8 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_alternation_probe_normalized.tsv"),
         columns = ALTERNATION_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
-        aafreq = nothing
+        aafreq = nothing,
+        dna = false
     ),
     (
         name = "exact_prefilter",
@@ -49,7 +52,8 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_exact_prefilter_probe_normalized.tsv"),
         columns = ALTERNATION_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
-        aafreq = nothing
+        aafreq = nothing,
+        dna = false
     ),
     (
         name = "score_tiebreak",
@@ -57,7 +61,8 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_score_tiebreak_probe_normalized.tsv"),
         columns = ALTERNATION_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
-        aafreq = nothing
+        aafreq = nothing,
+        dna = false
     ),
     (
         name = "nonuniform",
@@ -65,7 +70,26 @@ const FIXTURE_SPECS = (
         output = joinpath(FIXTURES_DIR, "oracle_nonuniform_probe_normalized.tsv"),
         columns = ORACLE_NORMALIZED_COLUMNS,
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
-        aafreq = joinpath(FIXTURES_DIR, "nonuniform_probe.aafreq.tsv")
+        aafreq = joinpath(FIXTURES_DIR, "nonuniform_probe.aafreq.tsv"),
+        dna = false
+    ),
+    (
+        name = "dna",
+        motif_set = joinpath(FIXTURES_DIR, "dna_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_dna_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing,
+        dna = true
+    ),
+    (
+        name = "dna_nonuniform",
+        motif_set = joinpath(FIXTURES_DIR, "dna_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_dna_nonuniform_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = joinpath(FIXTURES_DIR, "dna_nonuniform_probe.aafreq.tsv"),
+        dna = true
     )
 )
 
@@ -190,6 +214,9 @@ function _run_fixture!(oracle::String, spec)
             "python3", oracle, "motifs=$motif_file", "searchdb=$motif_file",
             "resfile=$result_prefix", "i=-1", "v=0", spec.oracle_args...
         ]
+        if spec.dna
+            push!(cmd_parts, "dna=T")
+        end
         if spec.aafreq !== nothing
             push!(cmd_parts, "aafreq=$(spec.aafreq)")
         end
