@@ -6,7 +6,8 @@ using TestItems
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
-    # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 3 (page 1309)
+    # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 3.
+    # Score literals below come from the figure's rounded display.
     # Figure 3 prints scores to two decimals; compare with a matching tolerance.
     cases = [
         (

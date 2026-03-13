@@ -31,6 +31,8 @@ using TestItems
     end
 
     @testset "custom residue frequencies" begin
+        # This `2.19` check mirrors the documented non-uniform DNA example recorded
+        # in `AGENT_NOTES.md`; there is no committed oracle fixture for this DNA case.
         weighted = ComparisonOptions(;
             alphabet = DNAAlphabet(),
             residue_frequencies = Dict('A' => 0.3, 'C' => 0.2, 'G' => 0.2, 'T' => 0.3),

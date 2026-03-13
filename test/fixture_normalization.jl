@@ -5,6 +5,9 @@ using TestItems
 
     include(joinpath(dirname(@__DIR__), "data", "fixtures", "generate_oracle_fixture.jl"))
 
+    # These sample rows are synthetic normalization/serialization probes copied
+    # from prior normalized fixture content to avoid regressions in the normalization 
+    # and output formatting behavior.
     rows = Dict{String, String}[
     Dict(
         "Motif1" => "[RKQ]L[IV]T",

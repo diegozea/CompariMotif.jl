@@ -213,6 +213,10 @@ end
 
     # When match_ic and matched_positions tie across expanded branches, the
     # higher score should win even if it was encountered later in search order.
+    # The numeric winners below intentionally mirror the committed oracle score-
+    # tiebreak fixture (`data/fixtures/oracle_score_tiebreak_probe_normalized.tsv`),
+    # but stay inline because this unit test is meant to exercise the internal
+    # tie-break path without depending on fixture I/O.
     zero_fixed_tiebreak = compare("A", "[AC][AC]|[AC]", options)
     @test zero_fixed_tiebreak.matched
     @test zero_fixed_tiebreak.query_relationship == "Variant Match"

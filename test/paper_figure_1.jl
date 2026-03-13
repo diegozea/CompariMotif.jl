@@ -6,7 +6,8 @@ using TestItems
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
-    # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 1 (page 1308)
+    # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 1.
+    # The numeric checks below are the figure's printed values.
     result = compare("[KR]xLx{0,1}[FYLIVMP]", "RxLE", options)
 
     @test result.matched

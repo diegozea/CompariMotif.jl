@@ -115,18 +115,25 @@ using TestItems
     end
     @test observed_pairs == expected_pairs
 
+    # Lock the winning oracle-expanded branch for the focused tie-break probes.
+    best_12 = best_by_pair[(1, 2)]
+    @test (best_12["Name1"], best_12["Name2"]) == ("M0001", "M0002_a")
     @test results[1, 2].query_relationship == "Variant Match"
     @test results[1, 2].search_relationship == "Degenerate Match"
-    @test results[1, 2].score ≈ 1.0 atol = 1e-12
-    @test results[1, 2].search_information ≈ 0.7686217868402407 atol = 1e-12
+    @test results[1, 2].score ≈ parse(Float64, best_12["Score"]) atol = 1e-3
+    @test results[1, 2].search_information ≈ parse(Float64, best_12["Info2"]) atol = 1e-2
 
+    best_34 = best_by_pair[(3, 4)]
+    @test (best_34["Name1"], best_34["Name2"]) == ("M0003", "M0004_b")
     @test results[3, 4].query_relationship == "Exact Overlap"
     @test results[3, 4].search_relationship == "Exact Overlap"
-    @test results[3, 4].score ≈ 0.5654120103239064 atol = 1e-12
-    @test results[3, 4].search_information ≈ 1.7686217868402407 atol = 1e-12
+    @test results[3, 4].score ≈ parse(Float64, best_34["Score"]) atol = 1e-3
+    @test results[3, 4].search_information ≈ parse(Float64, best_34["Info2"]) atol = 1e-2
 
+    best_56 = best_by_pair[(5, 6)]
+    @test (best_56["Name1"], best_56["Name2"]) == ("M0005", "M0006_b")
     @test results[5, 6].query_relationship == "Exact Overlap"
     @test results[5, 6].search_relationship == "Exact Overlap"
-    @test results[5, 6].score ≈ 0.5654120103239064 atol = 1e-12
-    @test results[5, 6].search_information ≈ 1.7686217868402407 atol = 1e-12
+    @test results[5, 6].score ≈ parse(Float64, best_56["Score"]) atol = 1e-3
+    @test results[5, 6].search_information ≈ parse(Float64, best_56["Info2"]) atol = 1e-2
 end

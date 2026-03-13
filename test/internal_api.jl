@@ -7,6 +7,8 @@ using TestItems
     # This test mirrors the worked example in `docs/src/internal_api.md`.
     # Keep this file and that page in sync when changing the example inputs,
     # the documented intermediate values, or the internal pipeline behavior.
+    # The rounded numeric checks below intentionally mirror that docs walkthrough,
+    # which is derived from the paper's Figure 1 example.
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
