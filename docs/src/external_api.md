@@ -117,15 +117,6 @@ query_hits[1, 1].matched
 query_hits[1, 2].matched
 ```
 
-## Canonicalization
-
-[`normalize_motif`](@ref) parses a motif and renders it in the deterministic syntax 
-used internally by the comparison pipeline. You do not need to call this function directly.
-
-```@repl external_api_examples
-normalize_motif("r[kR].{0,1}l")
-```
-
 ## Reference
 
 The full public API is listed below. Use these docstrings when you need the
@@ -137,7 +128,6 @@ DNAAlphabet
 RNAAlphabet
 ComparisonOptions
 ComparisonResult
-normalize_motif
 compare
 to_column_table
 ```

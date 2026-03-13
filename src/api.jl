@@ -1,30 +1,12 @@
 """
-    normalize_motif(motif::AbstractString; alphabet = ProteinAlphabet())::String
+    _normalize_motif(motif::AbstractString; alphabet = ProteinAlphabet())::String
 
-Parse and canonicalize a motif expression into a deterministic representation.
-Supported syntax includes fixed residues from the selected alphabet, bracket
-classes (including negation), `x`/`X`/`.` wildcards, `^`/`\$` termini, and
-`{n}`/`{m,n}` repeat quantifiers. Grouping with `(...)` and alternation with
-`|` are also supported.
-
-Wildcard tokens `x`, `X`, and `.` are equivalent and each means "any residue"
-in the selected alphabet (`ProteinAlphabet()`, `DNAAlphabet()`, or
-`RNAAlphabet()`).
-
-# Examples
-```jldoctest
-julia> using CompariMotif
-
-julia> normalize_motif("r[kR].{0,1}l")
-"R[RK]x{0,1}L"
-```
-
-$(_DOC_OPTIONS_REF)
-$(_DOC_COMPARE_REF)
+Internal parser helper that renders a motif into the deterministic canonical
+syntax used by the comparison pipeline.
 """
-function normalize_motif(motif::AbstractString; alphabet::_AlphabetValue = ProteinAlphabet())
+function _normalize_motif(motif::AbstractString; alphabet::_AlphabetValue = ProteinAlphabet())
     # Reuse the normal parser pipeline with permissive thresholds.
-    # `normalize_motif` only needs deterministic parsing/canonicalization.
+    # `_normalize_motif` only needs deterministic parsing/canonicalization.
     options = ComparisonOptions(; alphabet, min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     return _parse_motif(motif, options).normalized
 end
@@ -66,7 +48,6 @@ true
 $(_DOC_OPTIONS_REF)
 $(_DOC_VARIANT_SIZE_REF)
 $(_DOC_RESULT_REF)
-$(_DOC_NORMALIZE_REF)
 $(_DOC_TABLE_REF)
 """
 function compare end

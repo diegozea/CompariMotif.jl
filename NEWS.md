@@ -5,12 +5,14 @@
 - *[Breaking change]* Alphabet selectors now use marker objects instead of
   symbols or strings in the public API.
   - Use `ProteinAlphabet()`, `DNAAlphabet()`, or `RNAAlphabet()` with
-  `ComparisonOptions` and `normalize_motif`.
+  `ComparisonOptions`.
   - Migration examples:
     - `ComparisonOptions(; alphabet = :dna)` becomes
       `ComparisonOptions(; alphabet = DNAAlphabet())`
-    - `normalize_motif("AUG"; alphabet = :rna)` becomes
-      `normalize_motif("AUG"; alphabet = RNAAlphabet())`
+- *[Breaking change]* `normalize_motif` is no longer part of the public API.
+  - Canonicalized motif strings remain available through
+    `ComparisonResult.normalized_query`, `ComparisonResult.normalized_search`,
+    and `to_column_table`.
 - *[Breaking change]* `ComparisonOptions` now keeps the selected alphabet marker in the public
   struct and display output instead of exposing derived internal alphabet
   caches.

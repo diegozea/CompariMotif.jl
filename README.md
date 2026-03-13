@@ -14,8 +14,8 @@ expressions.
 ## API
 
 Most workflows follow the same pattern: create a `ComparisonOptions` object
-once, run one of the `compare` methods, optionally canonicalize motifs with
-`normalize_motif`, and export results with `to_column_table`.
+once, run one of the `compare` methods, and export results with
+`to_column_table`.
 
 ### `ComparisonOptions`
 
@@ -38,14 +38,6 @@ known query motif and one known target motif. Use query-vs-targets mode when
 you want to search a single query motif against a database of target motifs.
 Use collection-vs-collection mode when you want to compare two motif sets, and
 use `compare(motifs, options)` for all-vs-all comparisons within one set.
-
-### `normalize_motif`
-
-- `normalize_motif(motif::AbstractString; alphabet = ProteinAlphabet())::String`
-
-Use `normalize_motif` when you want a deterministic, canonical rendering of a
-motif without running a full comparison. This is useful for validating input,
-standardizing motif syntax, or inspecting how the package interprets a pattern.
 
 ### `to_column_table`
 
@@ -181,8 +173,7 @@ black-box oracle observations only. GPL CompariMotif source code is not used.
 
 ## Citation
 
-If you use this Julia pipeline in scientific work, please cite the original
-algorithm paper:
+If you use this Julia pipeline in scientific work, **please cite CompariMotif's paper**:
 
 - Edwards RJ, Davey NE, Shields DC. *CompariMotif: quick and easy comparisons of
   sequence motifs*. Bioinformatics 24(10):1307-1309 (2008).

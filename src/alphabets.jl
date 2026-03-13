@@ -22,25 +22,22 @@ _alphabet_chars(::Type{RNAAlphabet}) = _RNAAlphabetString
 @doc """
     ProteinAlphabet
 
-Select the standard protein alphabet for [`ComparisonOptions`](@ref) and
-[`normalize_motif`](@ref). Allowed residues: `$(_ProteinAlphabetString)`.
-Use as `ProteinAlphabet()`.
+Select the standard protein alphabet for [`ComparisonOptions`](@ref).
+Allowed residues: `$(_ProteinAlphabetString)`. Use as `ProteinAlphabet()`.
 """ ProteinAlphabet
 
 @doc """
     DNAAlphabet
 
-Select the DNA alphabet for [`ComparisonOptions`](@ref) and
-[`normalize_motif`](@ref). Allowed residues: `$(_DNAAlphabetString)`.
-Use as `DNAAlphabet()`.
+Select the DNA alphabet for [`ComparisonOptions`](@ref).
+Allowed residues: `$(_DNAAlphabetString)`. Use as `DNAAlphabet()`.
 """ DNAAlphabet
 
 @doc """
     RNAAlphabet
 
-Select the RNA alphabet for [`ComparisonOptions`](@ref) and
-[`normalize_motif`](@ref). Allowed residues: `$(_RNAAlphabetString)`.
-Use as `RNAAlphabet()`.
+Select the RNA alphabet for [`ComparisonOptions`](@ref).
+Allowed residues: `$(_RNAAlphabetString)`. Use as `RNAAlphabet()`.
 """ RNAAlphabet
 
 function _build_alphabet_spec(::Type{A}) where {A <: _Alphabet}

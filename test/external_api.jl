@@ -42,7 +42,9 @@ using TestItems
         @test round(result.match_ic, digits = 3) == 2.19
     end
 
-    @testset "canonicalization" begin
-        @test normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
+    @testset "public surface" begin
+        @test :normalize_motif ∉ names(CompariMotif)
+        @test :compare in names(CompariMotif)
+        @test :to_column_table in names(CompariMotif)
     end
 end

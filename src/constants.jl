@@ -11,10 +11,9 @@ const _DNAAlphabetString = "ACGT"
 const _RNAAlphabetString = "ACGU"
 
 # Shared docstring snippets to keep user-facing documentation consistent
-# across `normalize_motif`, `compare`, and `to_column_table`.
+# across `compare` and `to_column_table`.
 const _DOC_OPTIONS_REF = "Configure thresholds and matching semantics with [`ComparisonOptions`](@ref)."
 const _DOC_RESULT_REF = "Returns a [`ComparisonResult`](@ref)."
-const _DOC_NORMALIZE_REF = "Use [`normalize_motif`](@ref) for deterministic motif canonicalization."
 const _DOC_COMPARE_REF = "Compute similarities with [`compare`](@ref)."
 const _DOC_TABLE_REF = "Convert results to column tables with [`to_column_table`](@ref)."
 const _DOC_VARIANT_SIZE_REF = "The result matrix has size `(length(motifs), length(db))`."

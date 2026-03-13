@@ -83,9 +83,9 @@ julia> clean_protein_motif = replace("ABZX", "B" => "[DN]", "Z" => "[EQ]")
 
 ## How do I switch alphabets?
 
-Choose the alphabet when constructing [`ComparisonOptions`](@ref), or when
-calling [`normalize_motif`](@ref) directly. The alphabet options are `DNAAlphabet()`, 
-`RNAAlphabet()`, and `ProteinAlphabet()` (the default).
+Choose the alphabet when constructing [`ComparisonOptions`](@ref). The alphabet
+options are `DNAAlphabet()`, `RNAAlphabet()`, and `ProteinAlphabet()` (the
+default).
 
 ```jldoctest persist_results
 julia> options = ComparisonOptions(; alphabet = RNAAlphabet());

@@ -3,7 +3,7 @@ module CompariMotif
 using AutoPrettyPrinting
 
 export ComparisonOptions, ComparisonResult, ProteinAlphabet, DNAAlphabet,
-       RNAAlphabet, compare, normalize_motif, to_column_table
+       RNAAlphabet, compare, to_column_table
 
 # Module assembly order matters:
 # - foundational constants/types first,

@@ -30,7 +30,7 @@ When `matched == false`, the relationship labels are `No Match`,
 `matched_pattern` is empty, and all position/score/information totals stay at
 their zero defaults.
 
-See also [`ComparisonOptions`](@ref), [`normalize_motif`](@ref), [`to_column_table`](@ref).
+See also [`ComparisonOptions`](@ref), [`compare`](@ref), [`to_column_table`](@ref).
 """
 Base.@kwdef struct ComparisonResult
     query::String

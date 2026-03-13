@@ -1,24 +1,24 @@
 using TestItems
 
-@testitem "normalize motif syntax" begin
+@testitem "internal motif normalization syntax" begin
     using Test
     using CompariMotif
 
-    @test normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
-    @test normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]x"
-    @test_throws ArgumentError normalize_motif("x(1,2)")
+    @test CompariMotif._normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
+    @test CompariMotif._normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]x"
+    @test_throws ArgumentError CompariMotif._normalize_motif("x(1,2)")
 end
 
 @testitem "alternation syntax" begin
     using Test
     using CompariMotif
 
-    @test normalize_motif("(rkli)") == "RKLI"
-    @test normalize_motif("(rkli)|(r[kr]l[iv])") == "(RKLI)|(R[RK]L[IV])"
-    @test normalize_motif("RKLI|R[KR]L[IV]") == "(RKLI)|(R[RK]L[IV])"
-    @test normalize_motif("A(K|Q)LI") == "(AKLI)|(AQLI)"
-    @test normalize_motif("(K|Q)") == "(K)|(Q)"
-    @test normalize_motif("R(KL)I") == "RKLI"
+    @test CompariMotif._normalize_motif("(rkli)") == "RKLI"
+    @test CompariMotif._normalize_motif("(rkli)|(r[kr]l[iv])") == "(RKLI)|(R[RK]L[IV])"
+    @test CompariMotif._normalize_motif("RKLI|R[KR]L[IV]") == "(RKLI)|(R[RK]L[IV])"
+    @test CompariMotif._normalize_motif("A(K|Q)LI") == "(AKLI)|(AQLI)"
+    @test CompariMotif._normalize_motif("(K|Q)") == "(K)|(Q)"
+    @test CompariMotif._normalize_motif("R(KL)I") == "RKLI"
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     result = compare("(RKLI)|(AQLI)", "AQLI", options)
@@ -41,9 +41,9 @@ end
     using Test
     using CompariMotif
 
-    @test normalize_motif("A.Xx"; alphabet = ProteinAlphabet()) == "Axxx"
-    @test normalize_motif("A.Xx"; alphabet = DNAAlphabet()) == "Axxx"
-    @test normalize_motif("A.Xx"; alphabet = RNAAlphabet()) == "Axxx"
+    @test CompariMotif._normalize_motif("A.Xx"; alphabet = ProteinAlphabet()) == "Axxx"
+    @test CompariMotif._normalize_motif("A.Xx"; alphabet = DNAAlphabet()) == "Axxx"
+    @test CompariMotif._normalize_motif("A.Xx"; alphabet = RNAAlphabet()) == "Axxx"
 end
 
 @testitem "position information content" begin
@@ -677,7 +677,7 @@ end
 
     rna_options = ComparisonOptions(;
         alphabet = RNAAlphabet(), min_shared_positions = 1, normalized_ic_cutoff = 0.0)
-    @test normalize_motif("A[CU]x"; alphabet = RNAAlphabet()) == "A[CU]x"
+    @test CompariMotif._normalize_motif("A[CU]x"; alphabet = RNAAlphabet()) == "A[CU]x"
     @test compare("AUG", "AUG", rna_options).matched
-    @test_throws ArgumentError normalize_motif("ATG"; alphabet = RNAAlphabet())
+    @test_throws ArgumentError CompariMotif._normalize_motif("ATG"; alphabet = RNAAlphabet())
 end
