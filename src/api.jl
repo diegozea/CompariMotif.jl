@@ -31,6 +31,9 @@ end
 
 """
     compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult
+    compare(motif::AbstractString,
+            db::AbstractVector{<:AbstractString},
+            options::ComparisonOptions)::Matrix{ComparisonResult}
     compare(motifs::AbstractVector{<:AbstractString},
             db::AbstractVector{<:AbstractString},
             options::ComparisonOptions)::Matrix{ComparisonResult}
@@ -40,9 +43,10 @@ end
 Compare motifs according to the CompariMotif scoring scheme described by
 [Edwards2008CompariMotif](@citet).
 
-- Pairwise mode compares one query motif against one search motif.
-- Matrix mode computes all pairwise query-vs-database comparisons.
-- All-vs-all mode is a convenience alias for `compare(motifs, motifs, options)`.
+- Pairwise mode compares one query motif against one target motif.
+- Query-search mode compares one query motif against a database of target motifs.
+- Database mode compares one motif collection against another.
+- Passing a single motif collection allows for all-vs-all comparison within that collection.
 
 # Examples
 ```jldoctest
@@ -70,7 +74,7 @@ function compare end
 """
     compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult
 
-Pairwise motif comparison.
+Compare one query motif against one target motif.
 """
 function compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)
     # Parse both motifs once, then run the shared comparison core.
@@ -80,9 +84,22 @@ function compare(a::AbstractString, b::AbstractString, options::ComparisonOption
 end
 
 """
+    compare(motif, db, options)::Matrix{ComparisonResult}
+
+Search one query motif against a database of target motifs.
+"""
+function compare(
+        motif::AbstractString,
+        db::AbstractVector{<:AbstractString},
+        options::ComparisonOptions
+)
+    compare([motif], db, options)
+end
+
+"""
     compare(motifs, db, options)::Matrix{ComparisonResult}
 
-Compare all query motifs against all search-database motifs.
+Compare one motif collection against another motif collection.
 """
 function compare(
         motifs::AbstractVector{<:AbstractString},
@@ -106,9 +123,9 @@ end
 """
     compare(motifs, options)::Matrix{ComparisonResult}
 
-Convenience all-vs-all matrix mode.
+Convenience all-vs-all comparison of one motif collection.
 """
 function compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)
-    # Convenience all-vs-all matrix mode.
+    # Convenience all-vs-all comparison mode.
     compare(motifs, motifs, options)
 end

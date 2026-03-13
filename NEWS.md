@@ -18,6 +18,8 @@
   the exported `MatchFixMode` enum and enum values.
   - Valid values are exactly `:none`, `:query_fixed`, `:search_fixed`, and `:both_fixed`.
   - Strings and legacy enum names are no longer accepted.
+- `compare` now also accepts a single query motif as the first argument and 
+  a  collection of target motifs as the second argument.
 - Added support for non-uniform residue frequencies through
   `ComparisonOptions(; residue_frequencies = ...)`, so information-content
   scoring can use a custom DNA, RNA, or protein background model instead of a

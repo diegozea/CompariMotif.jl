@@ -106,6 +106,17 @@ size(results)
 table = to_column_table(results)
 ```
 
+When you want to search a single query motif against a database of targets,
+pass the query as a string and the targets as a vector. This is useful when you
+already know the motif you want to look up and want to inspect or export all
+hits against a target set.
+
+```@repl external_api_examples
+query_hits = compare("RKLI", ["RKLI", "RxLE"], options);
+query_hits[1, 1].matched
+query_hits[1, 2].matched
+```
+
 ## Canonicalization
 
 [`normalize_motif`](@ref) parses a motif and renders it in the deterministic syntax 

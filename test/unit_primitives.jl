@@ -548,6 +548,11 @@ end
     @test size(matrix_db) == (3, 2)
     @test matrix_db[3, 1].matched
     @test matrix_db[3, 1].query_relationship == "Degenerate Parent"
+
+    single_vs_many = compare("RKLI", ["RKLI", "R[KR]L[IV]"], options)
+    wrapped_single_vs_many = compare(["RKLI"], ["RKLI", "R[KR]L[IV]"], options)
+    @test size(single_vs_many) == (1, 2)
+    @test to_column_table(single_vs_many) == to_column_table(wrapped_single_vs_many)
 end
 
 @testitem "options overloads and abstract string interfaces" begin
@@ -565,6 +570,8 @@ end
     matrix = compare(split_motifs, options)
     @test size(matrix) == (3, 3)
     @test matrix[2, 1].query_relationship == "Degenerate Match"
+
+    @test_throws MethodError compare(split_motifs, "RKLI", options)
 end
 
 @testitem "max_variants overflow guard" begin
@@ -617,6 +624,10 @@ end
     @test length(mat_table.query_index) == 4
     @test mat_table.query_index == [1, 1, 2, 2]
     @test mat_table.search_index == [1, 2, 1, 2]
+
+    single_vs_many = to_column_table(compare("RKLI", ["RKLI", "R[KR]L[IV]"], options))
+    @test single_vs_many.query_index == [1, 1]
+    @test single_vs_many.search_index == [1, 2]
 end
 
 @testitem "to_column_table DataFrame conversion" begin

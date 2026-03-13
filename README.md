@@ -13,12 +13,48 @@ expressions.
 
 ## API
 
+Most workflows follow the same pattern: create a `ComparisonOptions` object
+once, run one of the `compare` methods, optionally canonicalize motifs with
+`normalize_motif`, and export results with `to_column_table`.
+
+### `ComparisonOptions`
+
 - `ComparisonOptions(; kwargs...)`
+
+Create a reusable options object that holds the alphabet, thresholds, and
+matching rules for a comparison run. In practice, you normally build one
+`ComparisonOptions` value at the start of an analysis and pass it to every
+`compare` call in that workflow.
+
+### `compare`
+
 - `compare(a::AbstractString, b::AbstractString, options::ComparisonOptions)::ComparisonResult`
+- `compare(query::AbstractString, targets::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
 - `compare(motifs::AbstractVector{<:AbstractString}, db::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
 - `compare(motifs::AbstractVector{<:AbstractString}, options::ComparisonOptions)::Matrix{ComparisonResult}`
+
+Use pairwise comparison when you want to inspect the relationship between one
+known query motif and one known target motif. Use query-vs-targets mode when
+you want to search a single query motif against a database of target motifs.
+Use collection-vs-collection mode when you want to compare two motif sets, and
+use `compare(motifs, options)` for all-vs-all comparisons within one set.
+
+### `normalize_motif`
+
 - `normalize_motif(motif::AbstractString; alphabet = ProteinAlphabet())::String`
+
+Use `normalize_motif` when you want a deterministic, canonical rendering of a
+motif without running a full comparison. This is useful for validating input,
+standardizing motif syntax, or inspecting how the package interprets a pattern.
+
+### `to_column_table`
+
 - `to_column_table(result_or_results)::NamedTuple`
+
+Use `to_column_table` to turn a single result or a collection of results into a
+column-oriented table that can be passed directly to `DataFrame` or
+`CSV.write`. This is the simplest way to persist pairwise hits,
+query-vs-target search results, or larger database comparisons.
 
 ## Minimal example
 
