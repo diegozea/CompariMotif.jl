@@ -79,7 +79,7 @@ julia> clean_rna_motif = replace("AUHB", "H" => "[ACU]", "B" => "[CGU]")
 
 julia> clean_protein_motif = replace("ABZX", "B" => "[DN]", "Z" => "[EQ]")
 "A[DN][EQ]X"
-```jldoctest persist_results
+```
 
 ## How do I switch alphabets?
 
@@ -130,7 +130,7 @@ julia> show(df, allrows = true, allcols = true)
    7 │           3             1  [ST]P       RKLI        [ST]P             RKLI                 false  No Match            No Match                                              0   0.0                0.0  0.0           0.0            0.0                 0.0
    8 │           3             2  [ST]P       R[KR]L[IV]  [ST]P             R[RK]L[IV]           false  No Match            No Match                                              0   0.0                0.0  0.0           0.0            0.0                 0.0
    9 │           3             3  [ST]P       [ST]P       [ST]P             [ST]P                 true  Exact Match         Exact Match          [ST]P                            2   1.76862            1.0  0.884311      2.0            1.76862             1.76862
-```jldoctest persist_results
+```
 
 ## How do I persist comparison results and load them in another Julia session?
 
@@ -210,3 +210,99 @@ ComparisonResult(
   search_information  = 3.537243573680481
 )
 ```
+
+## How do I cluster ELM motifs?
+
+This package was developed to cluster ELM motifs for the purpose of partitioning them into 
+training and test sets in a Julia-based machine learning project, without introducing a 
+dependency on an external Python script. A straightforward approach is to perform 
+all-against-all motif comparisons to construct a graph, and then define clusters as the 
+connected components of that graph. In practice, this requires comparing motifs, 
+selecting a threshold to determine which matches are strong enough to be represented as 
+edges, and then identifying the weakly connected components of the resulting directed graph.
+
+Following [Palopoli2015QSLiMFinder](@citet), we treat two motifs as connected when
+they match in at least two positions, have `MatchIC >= 1.5`, and have
+`normalized_ic >= 0.5`. When you use `ComparisonOptions()`, the default
+thresholds already enforce the minimum of two matched positions and the
+`normalized_ic >= 0.5` cut-off, so the clustering rule only needs to add the
+`MatchIC` threshold.
+
+The graph is directed because `compare(a, b)` and `compare(b, a)` can differ depending on 
+the options you choose. Using [`Graphs.weakly_connected_components`](https://juliagraphs.org/Graphs.jl/stable/algorithms/connectivity/)
+on a directed graph keeps the clustering rule simple without assuming that the pairwise 
+comparisons are symmetric.
+
+We can make this concrete in three steps:
+
+**Step 1** is to compare all motifs against all motifs. The call
+`compare(motifs, options)` returns a square matrix, where `results[i, j]`
+contains the comparison of motif `motifs[i]` against motif `motifs[j]`. We
+also define a small helper, `is_cluster_match`, that says when one comparison
+is strong enough to become an edge in the clustering graph.
+
+```@repl elm_clustering
+using CompariMotif
+using Graphs
+
+motifs = ["RKLI", "R[KR]L[IV]", "[ST]P", "[ST]Px[KR]"]
+options = ComparisonOptions()
+results = compare(motifs, options);
+is_cluster_match(result) = result.matched && result.match_ic >= 1.5;
+```
+
+**Step 2** is to convert that matrix into a graph and then extract clusters from
+the graph. In this representation, each motif is one vertex. Whenever
+`results[i, j]` passes the clustering rule, we add a directed edge from vertex
+`i` to vertex `j`. Once all edges have been added, `weakly_connected_components`
+returns groups of motif indices that belong to the same cluster.
+
+```@repl elm_clustering
+function connected_component_assignments(results)
+    # `results` is the square matrix returned by `compare(motifs, options)`.
+    # Each row/column corresponds to one motif in the original input order.
+    n = size(results, 1)
+    size(results, 2) == n || throw(ArgumentError("expected a square all-vs-all comparison matrix"))
+
+    # Build a directed graph with one vertex per motif.
+    graph = SimpleDiGraph(n)
+    for i in 1:n, j in 1:n
+        # Ignore self-comparisons: each motif is already in its own cluster.
+        i == j && continue
+        # Add an edge `i -> j` when motif `i` matches motif `j`
+        # strongly enough for clustering.
+        is_cluster_match(results[i, j]) || continue
+        add_edge!(graph, i, j)
+    end
+
+    # Weakly connected components group motifs that are connected by the
+    # directed edges, even if the arrows do not point both ways.
+    components = weakly_connected_components(graph)
+    # Sort components so cluster numbering is deterministic and easy to read.
+    sort!(components, by = minimum)
+
+    # `clusters[k]` will store the cluster number for motif `k`.
+    clusters = zeros(Int, n)
+    for (cluster_id, component) in enumerate(components)
+        # `component` is the list of motif indices that belong to one cluster.
+        # The `.=` assigns the same cluster number to all of them at once.
+        clusters[component] .= cluster_id
+    end
+
+    return clusters
+end;
+```
+
+**Step 3** is to run the helper and inspect the result. The output vector has one
+integer per motif, in the same order as the original `motifs` vector. Motifs
+with the same integer belong to the same cluster. Taking `maximum(clusters)`
+gives the total number of clusters.
+
+```@repl elm_clustering
+clusters = connected_component_assignments(results)
+maximum(clusters)
+```
+
+Here, `clusters[i]` is the cluster assigned to `motifs[i]`. In this toy example, the first 
+two motifs fallb into one cluster and the last two motifs fall into another one, so the
+assignment vector is `[1, 1, 2, 2]`.
