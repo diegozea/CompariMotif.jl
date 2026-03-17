@@ -78,7 +78,7 @@ function _parse_repeat_quantifier(text::AbstractString, i::Int)
     repeat_min,
     repeat_max = if length(parts) == 1
         n = parse(Int, strip(parts[1]))
-        (n, n)
+        (max(n, 1), max(n, 1))
     elseif length(parts) == 2
         n = parse(Int, strip(parts[1]))
         m = parse(Int, strip(parts[2]))
@@ -86,7 +86,7 @@ function _parse_repeat_quantifier(text::AbstractString, i::Int)
     else
         throw(ArgumentError("Invalid repeat quantifier in motif: $text"))
     end
-    if repeat_min < 0 || repeat_max < repeat_min
+    if repeat_min < 0 || repeat_max < 0
         throw(ArgumentError("Invalid repeat bounds in motif: $text"))
     end
     return (repeat_min, repeat_max, nextind(text, close_idx))
@@ -198,17 +198,26 @@ end
 # - optional quantifiers `{n}` and `{m,n}` are attached to the preceding token;
 # - grouping and alternation (`(...)`, `|`) are expanded into independent branch
 #   token lists;
+# - leading/trailing whitespace is trimmed, while the first internal whitespace
+#   ends parsing to mirror the upstream oracle;
 # - canonical text is rebuilt from masks and quantifiers to normalize input.
 
 function _normalized_from_tokens(tokens::Vector{_Token})
     return join(getfield.(tokens, :canonical))
 end
 
-function _skip_ws(text::AbstractString, i::Int)
-    while i <= lastindex(text) && isspace(text[i])
-        i = nextind(text, i)
+function _oracle_parse_window(motif::AbstractString)
+    stripped = strip(motif)
+    isempty(stripped) && return stripped
+
+    i = firstindex(stripped)
+    while i <= lastindex(stripped)
+        if isspace(stripped[i])
+            return stripped[firstindex(stripped):prevind(stripped, i)]
+        end
+        i = nextind(stripped, i)
     end
-    return i
+    return stripped
 end
 
 function _combine_concat(lhs::Vector{String}, rhs::Vector{String})
@@ -225,7 +234,6 @@ function _parse_expr_alternatives(text::AbstractString, i::Int)
     seq = [""]
 
     while true
-        i = _skip_ws(text, i)
         if i > lastindex(text) || text[i] == ')'
             append!(terms, seq)
             return terms, i
@@ -244,7 +252,6 @@ function _parse_expr_alternatives(text::AbstractString, i::Int)
 end
 
 function _extract_quantifier(text::AbstractString, i::Int)
-    i = _skip_ws(text, i)
     if i > lastindex(text) || text[i] != '{'
         return "", i
     end
@@ -269,23 +276,18 @@ function _parse_atom_alternatives(text::AbstractString, i::Int)
             throw(ArgumentError("Unclosed grouping parenthesis in motif: $text"))
         text[next_i] == ')' || throw(ArgumentError("Malformed grouping in motif: $text"))
         quant, tail_i = _extract_quantifier(text, nextind(text, next_i))
-        if !isempty(quant)
-            throw(ArgumentError("Repeat quantifiers on grouped expressions are not supported: $text"))
+        if isempty(quant)
+            return inner_alts, tail_i
         end
-        return inner_alts, tail_i
+        return [alt * quant for alt in inner_alts], tail_i
     end
-    if char == ')' || char == '|'
-        throw(ArgumentError("Unexpected token '$char' in motif: $text"))
-    end
-
     quant, next_i = _extract_quantifier(text, nextind(text, i))
     return [string(char) * quant], next_i
 end
 
 function _expand_grouped_motif(text::AbstractString)
     alts, next_i = _parse_expr_alternatives(text, firstindex(text))
-    next_i = _skip_ws(text, next_i)
-    next_i <= lastindex(text) &&
+    next_i <= lastindex(text) && text[next_i] != ')' &&
         throw(ArgumentError("Unexpected trailing content in motif: $text"))
 
     cleaned = String[]
@@ -303,11 +305,6 @@ function _parse_linear_tokens(motif::AbstractString, spec::_AlphabetSpec)
     i = firstindex(motif)
     while i <= lastindex(motif)
         char = motif[i]
-        if isspace(char)
-            # Ignore whitespace so users can provide readable motifs.
-            i = nextind(motif, i)
-            continue
-        end
 
         # Parse a single symbolic unit (position/anchor/class/wildcard).
         position = if char == '^'
@@ -332,15 +329,6 @@ function _parse_linear_tokens(motif::AbstractString, spec::_AlphabetSpec)
 
         repeat_min, repeat_max,
         next_i = _parse_repeat_quantifier(motif, nextind(motif, i))
-        if position.kind !== _RESIDUE && (repeat_min != 1 || repeat_max != 1)
-            # Anchors are single logical positions, never repeatable.
-            throw(ArgumentError("Repeat quantifiers are not valid for termini in motif: $motif"))
-        end
-        if repeat_max == 0
-            # Quantifier like {0} removes this token from every expanded variant.
-            i = next_i
-            continue
-        end
 
         canonical = _canonical_token(position, spec)
         if repeat_min == 1 && repeat_max == 1
@@ -367,11 +355,11 @@ end
 Parse one motif string into canonical internal representation.
 """
 function _parse_motif(motif::AbstractString, options::ComparisonOptions)
-    stripped = strip(motif)
-    isempty(stripped) && throw(ArgumentError("Motif cannot be empty."))
+    parse_window = _oracle_parse_window(motif)
+    isempty(parse_window) && throw(ArgumentError("Motif cannot be empty."))
 
     spec = _alphabet_spec(options.alphabet)
-    branches = _expand_grouped_motif(stripped)
+    branches = _expand_grouped_motif(parse_window)
     alternatives = Vector{_Token}[]
     normalized_branches = String[]
     for branch in branches

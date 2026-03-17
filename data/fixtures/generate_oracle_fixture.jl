@@ -16,6 +16,7 @@ const ALTERNATION_NORMALIZED_COLUMNS = [
     "Name1", "Name2", "Motif1", "Motif2", "Sim1", "Sim2", "Match",
     "MatchPos", "MatchIC", "NormIC", "CoreIC", "Score", "Info1", "Info2"
 ]
+const CORNERCASE_NORMALIZED_COLUMNS = ALTERNATION_NORMALIZED_COLUMNS
 
 const FIXTURE_SPECS = (
     (
@@ -90,16 +91,24 @@ const FIXTURE_SPECS = (
         oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
         aafreq = joinpath(FIXTURES_DIR, "dna_nonuniform_probe.aafreq.tsv"),
         dna = true
+    ),
+    (
+        name = "cornercases",
+        motif_set = joinpath(FIXTURES_DIR, "cornercase_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_cornercase_probe_normalized.tsv"),
+        columns = CORNERCASE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
     )
 )
 
 function read_motifs(path::String)
     motifs = String[]
     for line in eachline(path)
-        stripped = strip(line)
-        isempty(stripped) && continue
-        startswith(stripped, '#') && continue
-        cols = split(stripped, '\t')
+        isempty(strip(line)) && continue
+        startswith(line, '#') && continue
+        cols = split(line, '\t')
         length(cols) == 1 || error("Invalid motif line: $line")
         push!(motifs, cols[1])
     end

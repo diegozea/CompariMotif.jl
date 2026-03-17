@@ -32,12 +32,6 @@ function _match_symbol(
         return _mask_to_symbol(union_mask, spec; as_lowercase = true, wildcard_symbol = "x")
     end
     if relation == _REL_EXACT
-        if qwild || swild
-            if qwild
-                return _mask_to_symbol(spos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
-            end
-            return _mask_to_symbol(qpos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
-        end
         return _mask_to_symbol(intersection, spec; as_lowercase = false, wildcard_symbol = "x")
     end
     if qwild

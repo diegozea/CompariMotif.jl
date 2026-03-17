@@ -1,0 +1,25 @@
+# Motif set used to validate whitespace handling and parser corner cases against the oracle.
+# Leading/trailing spaces are significant for the first probe motif below.
+ AC 
+A C
+A (K|Q) L I
+A(K|Q)LI
+A{0}
+A{2}
+A{0,1}
+A{2,1}
+A)
+A{-1}
+(A|C){2}
+^{2}A
+A${2}
+A[Q
+A
+AA
+ACD
+CD
+^A
+A$
+AKLI
+AQLI
+CC

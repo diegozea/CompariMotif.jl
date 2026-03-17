@@ -18,6 +18,7 @@ end
     @test CompariMotif._normalize_motif("RKLI|R[KR]L[IV]") == "(RKLI)|(R[RK]L[IV])"
     @test CompariMotif._normalize_motif("A(K|Q)LI") == "(AKLI)|(AQLI)"
     @test CompariMotif._normalize_motif("(K|Q)") == "(K)|(Q)"
+    @test CompariMotif._normalize_motif("(A|C){2}") == "(A{2})|(C{2})"
     @test CompariMotif._normalize_motif("R(KL)I") == "RKLI"
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
@@ -35,6 +36,46 @@ end
     @test redundant_grouping.matched
     @test redundant_grouping.query_relationship == "Exact Match"
     @test redundant_grouping.normalized_query == "RKLI"
+end
+
+@testitem "oracle parser corner cases" begin
+    using Test
+    using CompariMotif
+
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+
+    @test CompariMotif._normalize_motif(" AC ") == "AC"
+    @test CompariMotif._normalize_motif("A C") == "A"
+    @test CompariMotif._normalize_motif("A (K|Q) L I") == "A"
+    @test CompariMotif._normalize_motif("A)") == "A"
+    @test CompariMotif._normalize_motif("A{-1}") == "A"
+    @test CompariMotif._normalize_motif("A{0}") == "A"
+    @test CompariMotif._normalize_motif("A{0}CD") == "ACD"
+    @test CompariMotif._normalize_motif("^{2}A") == "^{2}A"
+    @test CompariMotif._normalize_motif("A\${2}") == "A\${2}"
+    @test CompariMotif._normalize_motif("A{0,1}") == "A{0,1}"
+    @test CompariMotif._normalize_motif("A{2,1}") == "A{2,1}"
+
+    retained = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A{0}", options), options, spec))
+    @test retained.normalized == "A"
+
+    grouped = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(A|C){2}", options), options, spec)
+    @test sort(getfield.(grouped, :normalized)) == ["AA", "CC"]
+
+    anchor_repeat = only(CompariMotif._expand_variants(
+        CompariMotif._parse_motif("^{2}A", options), options, spec))
+    @test anchor_repeat.normalized == "^^A"
+
+    impossible = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A{2,1}", options), options, spec)
+    @test isempty(impossible)
+    @test !compare("A{2,1}", "A", options).matched
+
+    @test_throws ArgumentError CompariMotif._normalize_motif("A[Q")
+    @test_throws ArgumentError CompariMotif._normalize_motif("A{-1,2}")
 end
 
 @testitem "wildcard token equivalence" begin
@@ -305,6 +346,11 @@ end
     @test !occursin("alphabet_index", shown)
     @test !occursin("alphabet_mask", shown)
     @test !occursin("log_base", shown)
+
+    @test_throws ArgumentError ComparisonOptions(; min_shared_positions = 0)
+    @test_throws ArgumentError ComparisonOptions(; normalized_ic_cutoff = -0.1)
+    @test_throws ArgumentError ComparisonOptions(; mismatches = -1)
+    @test_throws ArgumentError ComparisonOptions(; max_variants = 0)
 end
 
 @testitem "partial overlap scoring uses union information" begin
@@ -537,6 +583,48 @@ end
     end
     @test invalid_runtime isa ArgumentError
     @test occursin(expected_message, sprint(showerror, invalid_runtime))
+
+    invalid_search_runtime = try
+        CompariMotif._search_fixed_required(:query)
+        nothing
+    catch err
+        err
+    end
+    @test invalid_search_runtime isa ArgumentError
+    @test occursin(expected_message, sprint(showerror, invalid_search_runtime))
+end
+
+@testitem "candidate tie-break ordering" begin
+    using Test
+    using CompariMotif
+
+    variant = CompariMotif._MotifVariant(CompariMotif._Position[], "", 1.0)
+
+    function candidate(; matched_positions, exact_fixed_matches, match_ic = 1.0, score = 1.0)
+        return CompariMotif._Candidate(
+            variant,
+            variant,
+            CompariMotif._REL_EXACT,
+            CompariMotif._LEN_MATCH,
+            CompariMotif._REL_EXACT,
+            CompariMotif._LEN_MATCH,
+            "",
+            matched_positions,
+            exact_fixed_matches,
+            match_ic,
+            1.0,
+            1.0,
+            score
+        )
+    end
+
+    more_positions = candidate(; matched_positions = 3, exact_fixed_matches = 0)
+    fewer_positions = candidate(; matched_positions = 2, exact_fixed_matches = 1)
+    @test CompariMotif._is_better(more_positions, fewer_positions)
+
+    more_exact_fixed = candidate(; matched_positions = 3, exact_fixed_matches = 2)
+    fewer_exact_fixed = candidate(; matched_positions = 3, exact_fixed_matches = 1)
+    @test CompariMotif._is_better(more_exact_fixed, fewer_exact_fixed)
 end
 
 @testitem "matrix APIs" begin
