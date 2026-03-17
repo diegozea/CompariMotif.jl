@@ -19,6 +19,7 @@ makedocs(;
     pages = [
         "Home" => "index.md",
         "External API" => "external_api.md",
+        "Regex Syntax" => "regex_syntax.md",
         "FAQ / How-To" => "faq.md",
         "Internal API & Pipeline" => "internal_api.md",
         "References" => "references.md"
