@@ -1,9 +1,4 @@
-using TestItems
-
 @testitem "paper Table 1 relationship words" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
     # Edwards et al. (2008), Table 1 (page 1308)

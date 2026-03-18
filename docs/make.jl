@@ -1,11 +1,19 @@
-using CompariMotif
-using Documenter
-using DocumenterCitations
+import CompariMotif
+import Documenter
+import DocumenterCitations
 
-DocMeta.setdocmeta!(CompariMotif, :DocTestSetup, :(using CompariMotif); recursive = true)
-bib = CitationBibliography(joinpath(@__DIR__, "src", "references.bib"); style = :authoryear)
+Documenter.DocMeta.setdocmeta!(
+    CompariMotif,
+    :DocTestSetup,
+    :(import CompariMotif);
+    recursive = true
+)
+bib = DocumenterCitations.CitationBibliography(
+    joinpath(@__DIR__, "src", "references.bib");
+    style = :authoryear
+)
 
-makedocs(;
+Documenter.makedocs(;
     modules = [CompariMotif],
     checkdocs = :exports,
     authors = "Diego Javier Zea <diegozea@gmail.com> and contributors",
@@ -26,7 +34,7 @@ makedocs(;
     ]
 )
 
-deploydocs(;
+Documenter.deploydocs(;
     repo = "github.com/diegozea/CompariMotif.jl",
     devbranch = "main"
 )

@@ -1,9 +1,4 @@
-using TestItems
-
 @testitem "external API docs examples" begin
-    using Test
-    using CompariMotif
-
     # This test mirrors the examples in `docs/src/external_api.md`.
     # Keep this file and that page in sync when changing the example inputs,
     # the documented outputs, or the public API behavior.

@@ -1,8 +1,4 @@
-using TestItems
-
 @testitem "oracle fixture normalization" begin
-    using Test
-
     include(joinpath(dirname(@__DIR__), "data", "fixtures", "generate_oracle_fixture.jl"))
 
     # These sample rows are synthetic normalization/serialization probes copied
@@ -78,8 +74,6 @@ using TestItems
 end
 
 @testitem "oracle path resolution" begin
-    using Test
-
     include(joinpath(dirname(@__DIR__), "data", "fixtures", "generate_oracle_fixture.jl"))
 
     @test resolve_oracle_path(Dict("SLiMSuite_PATH" => "/tmp/SLiMSuite")) ==

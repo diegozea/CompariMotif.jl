@@ -1,18 +1,10 @@
-using TestItems
-
 @testitem "internal motif normalization syntax" begin
-    using Test
-    using CompariMotif
-
     @test CompariMotif._normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
     @test CompariMotif._normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]x"
     @test_throws ArgumentError CompariMotif._normalize_motif("x(1,2)")
 end
 
 @testitem "alternation syntax" begin
-    using Test
-    using CompariMotif
-
     @test CompariMotif._normalize_motif("(rkli)") == "RKLI"
     @test CompariMotif._normalize_motif("(rkli)|(r[kr]l[iv])") == "(RKLI)|(R[RK]L[IV])"
     @test CompariMotif._normalize_motif("RKLI|R[KR]L[IV]") == "(RKLI)|(R[RK]L[IV])"
@@ -39,9 +31,6 @@ end
 end
 
 @testitem "oracle parser corner cases" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     spec = CompariMotif._alphabet_spec(options.alphabet)
 
@@ -79,18 +68,12 @@ end
 end
 
 @testitem "wildcard token equivalence" begin
-    using Test
-    using CompariMotif
-
     @test CompariMotif._normalize_motif("A.Xx"; alphabet = ProteinAlphabet()) == "Axxx"
     @test CompariMotif._normalize_motif("A.Xx"; alphabet = DNAAlphabet()) == "Axxx"
     @test CompariMotif._normalize_motif("A.Xx"; alphabet = RNAAlphabet()) == "Axxx"
 end
 
 @testitem "position information content" begin
-    using Test
-    using CompariMotif
-
     for alphabet in (ProteinAlphabet(), DNAAlphabet(), RNAAlphabet())
         options = ComparisonOptions(; alphabet)
         spec = CompariMotif._alphabet_spec(alphabet)
@@ -109,9 +92,6 @@ end
 end
 
 @testitem "non-uniform residue frequencies" begin
-    using Test
-    using CompariMotif
-
     cases = (
         (
             ProteinAlphabet(),
@@ -203,9 +183,6 @@ end
 end
 
 @testitem "precise match phase precedes sliding window" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     spec = CompariMotif._alphabet_spec(options.alphabet)
 
@@ -288,9 +265,6 @@ end
 end
 
 @testitem "alphabet specs and options surface" begin
-    using Test
-    using CompariMotif
-
     defaults = ComparisonOptions()
     @test defaults.alphabet isa ProteinAlphabet
     @test defaults.residue_frequencies === nothing
@@ -354,9 +328,6 @@ end
 end
 
 @testitem "partial overlap scoring uses union information" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     spec = CompariMotif._alphabet_spec(options.alphabet)
     ugly_union = only(CompariMotif._expand_variants(
@@ -376,9 +347,6 @@ end
 end
 
 @testitem "residue frequency validation" begin
-    using Test
-    using CompariMotif
-
     @test_throws ArgumentError ComparisonOptions(;
         alphabet = DNAAlphabet(),
         residue_frequencies = Dict('A' => 1.0, 'C' => 1.0, 'G' => 1.0)
@@ -414,9 +382,6 @@ end
 end
 
 @testitem "single pair relationship categories" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
     exact = compare("RKLI", "RKLI", options)
@@ -440,9 +405,6 @@ end
 end
 
 @testitem "matchfix and mismatch options" begin
-    using Test
-    using CompariMotif
-
     base_options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     base = compare("A.", "AK", base_options)
     @test base.matched
@@ -475,9 +437,6 @@ end
 end
 
 @testitem "default option semantics" begin
-    using Test
-    using CompariMotif
-
     defaults = ComparisonOptions()
 
     @test !compare("A.", "AT", defaults).matched
@@ -503,9 +462,6 @@ end
 end
 
 @testitem "matchfix validation" begin
-    using Test
-    using CompariMotif
-
     @test ComparisonOptions(; matchfix = :none).matchfix == :none
     @test ComparisonOptions(; matchfix = :query_fixed).matchfix == :query_fixed
     @test ComparisonOptions(; matchfix = :search_fixed).matchfix == :search_fixed
@@ -595,9 +551,6 @@ end
 end
 
 @testitem "candidate tie-break ordering" begin
-    using Test
-    using CompariMotif
-
     variant = CompariMotif._MotifVariant(CompariMotif._Position[], "", 1.0)
 
     function candidate(; matched_positions, exact_fixed_matches, match_ic = 1.0, score = 1.0)
@@ -628,9 +581,6 @@ end
 end
 
 @testitem "matrix APIs" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]"]
     matrix_self = compare(motifs, options)
@@ -648,9 +598,6 @@ end
 end
 
 @testitem "options overloads and abstract string interfaces" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
     pair = compare("RKLI", "R[KR]L[IV]", options)
@@ -667,9 +614,6 @@ end
 end
 
 @testitem "max_variants overflow guard" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     repeated_choices = (8 * sizeof(Int)) - 1
     overflow_motif = repeat("x{1,2}", repeated_choices)
@@ -689,9 +633,6 @@ end
 end
 
 @testitem "to_column_table overloads" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     pair = compare("RKLI", "R[KR]L[IV]", options)
 
@@ -723,13 +664,11 @@ end
 end
 
 @testitem "to_column_table DataFrame conversion" begin
-    using Test
-    using DataFrames
-    using CompariMotif
+    import DataFrames
 
     motifs = ["RKLI", "R[KR]L[IV]"]
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
-    df = DataFrame(to_column_table(compare(motifs, options)))
+    df = DataFrames.DataFrame(to_column_table(compare(motifs, options)))
 
     @test size(df) == (4, 17)
     @test names(df)[1:5] ==
@@ -743,9 +682,7 @@ end
 end
 
 @testitem "to_column_table CSV export" begin
-    using Test
-    using CSV
-    using CompariMotif
+    import CSV
 
     motifs = ["RKLI", "R[KR]L[IV]"]
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
@@ -764,9 +701,6 @@ end
 end
 
 @testitem "RNA alphabet mode" begin
-    using Test
-    using CompariMotif
-
     rna_options = ComparisonOptions(;
         alphabet = RNAAlphabet(), min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     @test CompariMotif._normalize_motif("A[CU]x"; alphabet = RNAAlphabet()) == "A[CU]x"

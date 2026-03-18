@@ -1,6 +1,6 @@
 module CompariMotif
 
-using AutoPrettyPrinting
+import AutoPrettyPrinting: @def_pprint
 
 export ComparisonOptions, ComparisonResult, ProteinAlphabet, DNAAlphabet,
        RNAAlphabet, compare, to_column_table

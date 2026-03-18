@@ -1,9 +1,4 @@
-using TestItems
-
 @testitem "paper Figure 1 example" begin
-    using Test
-    using CompariMotif
-
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
     # Edwards et al. (2008), Bioinformatics 24(10):1307-1309, Fig. 1.

@@ -1,9 +1,5 @@
-using TestItems
-
 @testitem "FAQ docs examples" begin
-    using Test
-    using CompariMotif
-    using Graphs
+    import Graphs
 
     # This test mirrors the ELM clustering example in `docs/src/faq.md`.
     # Keep this file and that section in sync when changing the example
@@ -16,15 +12,15 @@ using TestItems
         size(results, 2) == n ||
             throw(ArgumentError("expected a square all-vs-all comparison matrix"))
 
-        graph = SimpleDiGraph(n)
+        graph = Graphs.SimpleDiGraph(n)
         for i in 1:n, j in 1:n
 
             i == j && continue
             is_cluster_match(results[i, j]) || continue
-            add_edge!(graph, i, j)
+            Graphs.add_edge!(graph, i, j)
         end
 
-        components = weakly_connected_components(graph)
+        components = Graphs.weakly_connected_components(graph)
         sort!(components, by = minimum)
 
         clusters = zeros(Int, n)

@@ -1,9 +1,4 @@
-using TestItems
-
 @testitem "internal API docs pipeline example" begin
-    using Test
-    using CompariMotif
-
     # This test mirrors the worked example in `docs/src/internal_api.md`.
     # Keep this file and that page in sync when changing the example inputs,
     # the documented intermediate values, or the internal pipeline behavior.

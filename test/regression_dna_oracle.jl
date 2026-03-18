@@ -1,9 +1,4 @@
-using TestItems
-
 @testitem "oracle DNA fixtures" begin
-    using Test
-    using CompariMotif
-
     function load_fixture_motifs(path::String)
         motifs = String[]
         for line in eachline(path)
