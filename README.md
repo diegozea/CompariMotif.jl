@@ -3,6 +3,7 @@
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://diegozea.github.io/CompariMotif.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://diegozea.github.io/CompariMotif.jl/dev)
 [![CI](https://github.com/diegozea/CompariMotif.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/diegozea/CompariMotif.jl/actions/workflows/CI.yml)
+[![Aqua QA](https://juliatesting.github.io/Aqua.jl/dev/assets/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![Coverage Status](https://coveralls.io/repos/github/diegozea/CompariMotif.jl/badge.svg?branch=main)](https://coveralls.io/github/diegozea/CompariMotif.jl?branch=main)
 [![codecov](https://codecov.io/gh/diegozea/CompariMotif.jl/graph/badge.svg?branch=main)](https://codecov.io/gh/diegozea/CompariMotif.jl?branch=main)
 
