@@ -11,6 +11,7 @@ end
     @test CompariMotif._normalize_motif("A(K|Q)LI") == "(AKLI)|(AQLI)"
     @test CompariMotif._normalize_motif("(K|Q)") == "(K)|(Q)"
     @test CompariMotif._normalize_motif("(A|C){2}") == "(A{2})|(C{2})"
+    @test CompariMotif._normalize_motif("(AC|GT){2}") == "(AC{2})|(GT{2})"
     @test CompariMotif._normalize_motif("R(KL)I") == "RKLI"
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
@@ -53,6 +54,9 @@ end
     grouped = CompariMotif._expand_variants(
         CompariMotif._parse_motif("(A|C){2}", options), options, spec)
     @test sort(getfield.(grouped, :normalized)) == ["AA", "CC"]
+    grouped_long = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(AC|GT){2}", options), options, spec)
+    @test sort(getfield.(grouped_long, :normalized)) == ["ACC", "GTT"]
 
     anchor_repeat = only(CompariMotif._expand_variants(
         CompariMotif._parse_motif("^{2}A", options), options, spec))
@@ -262,6 +266,18 @@ end
     @test subsequence_tiebreak.search_relationship == "Exact Subsequence"
     @test subsequence_tiebreak.score ≈ 1.0 atol = 1e-12
     @test subsequence_tiebreak.search_information ≈ 1.0 atol = 1e-12
+
+    oracle_shift_tiebreak = compare("AA", "Ax", options)
+    @test oracle_shift_tiebreak.matched
+    @test oracle_shift_tiebreak.query_relationship == "Exact Overlap"
+    @test oracle_shift_tiebreak.search_relationship == "Exact Overlap"
+    @test oracle_shift_tiebreak.matched_pattern == "A"
+
+    reverse_oracle_shift_tiebreak = compare("Ax", "AA", options)
+    @test reverse_oracle_shift_tiebreak.matched
+    @test reverse_oracle_shift_tiebreak.query_relationship == "Degenerate Match"
+    @test reverse_oracle_shift_tiebreak.search_relationship == "Variant Match"
+    @test reverse_oracle_shift_tiebreak.matched_pattern == "Aa"
 end
 
 @testitem "alphabet specs and options surface" begin
@@ -630,6 +646,16 @@ end
         max_variants = 100_000
     )
     @test_throws ArgumentError compare(large_but_manageable, "A", strict_options)
+
+    strict_alternation_options = ComparisonOptions(;
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0,
+        max_variants = 100
+    )
+    @test_throws ArgumentError CompariMotif._parse_motif(
+        repeat("(A|C)", 7),
+        strict_alternation_options
+    )
 end
 
 @testitem "to_column_table overloads" begin

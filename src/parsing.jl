@@ -206,6 +206,12 @@ function _normalized_from_tokens(tokens::Vector{_Token})
     return join(getfield.(tokens, :canonical))
 end
 
+function _variant_limit_error(motif::AbstractString, nvariants::BigInt, max_variants::Int)
+    return ArgumentError(
+        "Motif $motif expands to $nvariants variants, above max_variants=$max_variants."
+    )
+end
+
 function _oracle_parse_window(motif::AbstractString)
     stripped = strip(motif)
     isempty(stripped) && return stripped
@@ -220,8 +226,17 @@ function _oracle_parse_window(motif::AbstractString)
     return stripped
 end
 
-function _combine_concat(lhs::Vector{String}, rhs::Vector{String})
+function _combine_concat(
+        lhs::Vector{String},
+        rhs::Vector{String},
+        motif::AbstractString,
+        max_variants::Int
+)
+    total = big(length(lhs)) * big(length(rhs))
+    total > max_variants && throw(_variant_limit_error(motif, total, max_variants))
+
     out = String[]
+    sizehint!(out, Int(total))
     for left in lhs, right in rhs
 
         push!(out, left * right)
@@ -229,7 +244,7 @@ function _combine_concat(lhs::Vector{String}, rhs::Vector{String})
     return out
 end
 
-function _parse_expr_alternatives(text::AbstractString, i::Int)
+function _parse_expr_alternatives(text::AbstractString, i::Int, max_variants::Int)
     terms = String[]
     seq = [""]
 
@@ -246,8 +261,8 @@ function _parse_expr_alternatives(text::AbstractString, i::Int)
             continue
         end
 
-        atom_alts, i = _parse_atom_alternatives(text, i)
-        seq = _combine_concat(seq, atom_alts)
+        atom_alts, i = _parse_atom_alternatives(text, i, max_variants)
+        seq = _combine_concat(seq, atom_alts, text, max_variants)
     end
 end
 
@@ -259,7 +274,7 @@ function _extract_quantifier(text::AbstractString, i::Int)
     return String(text[i:prevind(text, next_i)]), next_i
 end
 
-function _parse_atom_alternatives(text::AbstractString, i::Int)
+function _parse_atom_alternatives(text::AbstractString, i::Int, max_variants::Int)
     char = text[i]
 
     if char == '['
@@ -271,7 +286,7 @@ function _parse_atom_alternatives(text::AbstractString, i::Int)
         return [atom * quant], next_i
     end
     if char == '('
-        inner_alts, next_i = _parse_expr_alternatives(text, nextind(text, i))
+        inner_alts, next_i = _parse_expr_alternatives(text, nextind(text, i), max_variants)
         next_i > lastindex(text) &&
             throw(ArgumentError("Unclosed grouping parenthesis in motif: $text"))
         text[next_i] == ')' || throw(ArgumentError("Malformed grouping in motif: $text"))
@@ -285,8 +300,8 @@ function _parse_atom_alternatives(text::AbstractString, i::Int)
     return [string(char) * quant], next_i
 end
 
-function _expand_grouped_motif(text::AbstractString)
-    alts, next_i = _parse_expr_alternatives(text, firstindex(text))
+function _expand_grouped_motif(text::AbstractString, max_variants::Int)
+    alts, next_i = _parse_expr_alternatives(text, firstindex(text), max_variants)
     next_i <= lastindex(text) && text[next_i] != ')' &&
         throw(ArgumentError("Unexpected trailing content in motif: $text"))
 
@@ -359,7 +374,7 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
     isempty(parse_window) && throw(ArgumentError("Motif cannot be empty."))
 
     spec = _alphabet_spec(options.alphabet)
-    branches = _expand_grouped_motif(parse_window)
+    branches = _expand_grouped_motif(parse_window, options.max_variants)
     alternatives = Vector{_Token}[]
     normalized_branches = String[]
     for branch in branches
@@ -409,7 +424,7 @@ function _expand_variants(
         nvariants += _variant_count(tokens)
     end
     if nvariants > options.max_variants
-        throw(ArgumentError("Motif $(parsed.original) expands to $nvariants variants, above max_variants=$(options.max_variants)."))
+        throw(_variant_limit_error(parsed.original, nvariants, options.max_variants))
     end
 
     # Depth-first expansion over repeat ranges.

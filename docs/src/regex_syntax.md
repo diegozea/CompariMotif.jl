@@ -18,7 +18,8 @@ Motif parsing supports a controlled regex-like subset.
 - Anchors:
   - `^` and `$` indicate N- and C-terminus for protein motifs, or 5' and 3' ends for nucleic acid motifs.
 - Repeat quantifiers:
-  - `{n}`, `{m,n}` on residues, classes, anchors, and grouped alternatives.
+  - `{n}`, `{m,n}` on residues, classes, anchors, and oracle-style grouped 
+    alternatives (see below).
 - Grouping and alternation:
   - `(...)` for grouping and `|` for alternatives, for example `A(K|Q)LI`.
 - Whitespace:
@@ -34,8 +35,10 @@ stricter regex grammar.
 - Internal whitespace truncates parsing at the first space, so `A C` behaves as `A`.
 - Some permissive exact quantifiers are accepted and normalized the same way as the
   oracle, for example `A{0}` and `A{-1}` both behave as `A`.
-- Grouped exact quantifiers are supported to mirror the oracle split behavior, for
-  example `(A|C){2}` expands to `AA` and `CC`.
+- Grouped exact quantifiers are supported with the oracle's branch-splitting
+  behavior rather than standard regex repetition semantics. For example,
+  `(A|C){2}` expands to `AA` and `CC`, while `(AC|GT){2}` expands to `ACC`
+  and `GTT` (equivalently normalized as `(AC{2})|(GT{2})`).
 - Some malformed constructs are treated as non-retained motifs rather than hard parse
   failures, such as `A{2,1}` producing zero retained variants.
 - Truly malformed syntax is still rejected when the oracle also rejects it, for

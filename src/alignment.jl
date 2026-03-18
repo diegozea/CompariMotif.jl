@@ -291,8 +291,9 @@ end
 """
     _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})::Bool
 
-Apply deterministic candidate ordering: 1) higher `match_ic`, 2) more matched positions, 
-3) higher `score`, 4) more exact fixed matches.
+Apply deterministic candidate ordering: 1) higher `match_ic`, 2) more matched positions,
+3) higher `score`, 4) more exact fixed matches. Remaining ties fall back to
+candidate encounter order from the shift scan inferred by black-box oracle tie cases.
 """
 function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     best === nothing && return true
@@ -429,7 +430,7 @@ function _compare_parsed(parsed_query::_ParsedMotif, parsed_search::_ParsedMotif
         for svariant in search_variants
             qlen = length(qvariant.positions)
             slen = length(svariant.positions)
-            for shift in (-(slen - 1)):(qlen - 1)
+            for shift in (qlen - 1):-1:(-(slen - 1))
                 candidate = _evaluate_alignment(
                     qvariant, svariant, shift, options, spec, residue_frequencies)
                 candidate === nothing && continue

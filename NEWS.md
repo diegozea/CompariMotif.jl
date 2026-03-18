@@ -35,6 +35,12 @@
   exact-subsequence pre-pass before the full sliding-window overlap search.
   This improves candidate selection for motifs with alternation and repeat
   expansion.
+- Fixed the final shift-selection tie-break to follow the shift order inferred
+  from black-box oracle tie cases when `match_ic`, matched positions, score,
+  and exact fixed-position matches are all tied.
+- Fixed alternation-heavy motifs to enforce `max_variants` during grouped-branch
+  parsing, so pathological branch growth is rejected before full parse-time
+  expansion.
 - Added a multi-page documentation manual with separate sections for the
   external API, the internal API and comparison pipeline, and a FAQ/how-to
   guide, plus a dedicated regex syntax reference for supported parser edge

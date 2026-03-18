@@ -6,9 +6,13 @@
 # 4. AA|[AC]A
 # 5. CA
 # 6. AA|A[AC]
+# 7. AA
+# 8. Ax
 A
 [AC][AC]|[AC]
 AC
 AA|[AC]A
 CA
 AA|A[AC]
+AA
+Ax
