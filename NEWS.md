@@ -1,6 +1,6 @@
 ## CompariMotif.jl Release Notes
 
-### Changes from 0.1.0 to main
+### Changes from 0.1.0 to 0.2.0
 
 - *[Breaking change]* Alphabet selectors now use marker objects instead of
   symbols or strings in the public API.
@@ -22,6 +22,10 @@
   - Strings and legacy enum names are no longer accepted.
 - `compare` now also accepts a single query motif as the first argument and 
   a  collection of target motifs as the second argument.
+- When multiple candidate overlaps tie on `match_ic` and matched positions,
+  `compare` now prefers the higher final `score` before falling back to exact
+  fixed-position matches. This improves deterministic branch selection and
+  keeps the winning overlap aligned with the oracle-backed tie-break fixtures.
 - Added support for non-uniform residue frequencies through
   `ComparisonOptions(; residue_frequencies = ...)`, so information-content
   scoring can use a custom DNA, RNA, or protein background model instead of a
@@ -33,6 +37,7 @@
   expansion.
 - Added a multi-page documentation manual with separate sections for the
   external API, the internal API and comparison pipeline, and a FAQ/how-to
-  guide.
+  guide, plus a dedicated regex syntax reference for supported parser edge
+  cases.
 - Expanded paper-backed regression coverage to Figures 1, 2, and 3, and added
   a tested internal pipeline walkthrough that stays aligned with the manual.
