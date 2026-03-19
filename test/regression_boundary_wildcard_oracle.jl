@@ -1,4 +1,4 @@
-@testitem "oracle defaults parity fixture" begin
+@testitem "oracle boundary-wildcard parity fixture" begin
     function load_fixture_motifs(path::String)
         motifs = String[]
         for line in eachline(path)
@@ -34,17 +34,21 @@
         return rows
     end
 
-    oracle_to_package(rel::String) = replace(rel, "Ugly" => "Complex")
-
     root = dirname(@__DIR__)
-    motifs_path = joinpath(root, "data", "fixtures", "default_probe_motifs.tsv")
-    oracle_path = joinpath(root, "data", "fixtures", "oracle_default_probe_normalized.tsv")
+    motifs_path = joinpath(root, "data", "fixtures", "boundary_wildcard_probe_motifs.tsv")
+    oracle_path = joinpath(
+        root,
+        "data",
+        "fixtures",
+        "oracle_boundary_wildcard_probe_normalized.tsv"
+    )
 
     patterns = load_fixture_motifs(motifs_path)
     motif_to_index = Dict(motif => idx for (idx, motif) in enumerate(patterns))
     @test length(motif_to_index) == length(patterns)
 
-    results = compare(patterns, patterns, ComparisonOptions())
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    results = compare(patterns, patterns, options)
     oracle_rows = load_oracle_rows(oracle_path)
 
     expected_pairs = Set{Tuple{Int, Int}}()
@@ -55,8 +59,8 @@
 
         result = results[qi, si]
         @test result.matched
-        @test result.query_relationship == oracle_to_package(row["Sim1"])
-        @test result.search_relationship == oracle_to_package(row["Sim2"])
+        @test result.query_relationship == row["Sim1"]
+        @test result.search_relationship == row["Sim2"]
         @test result.matched_positions == parse(Int, row["MatchPos"])
         @test result.match_ic ≈ parse(Float64, row["MatchIC"]) atol = 1e-3
         @test result.normalized_ic ≈ parse(Float64, row["NormIC"]) atol = 1e-3

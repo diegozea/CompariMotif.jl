@@ -40,6 +40,42 @@ const FIXTURE_SPECS = (
         dna = false
     ),
     (
+        name = "boundary_wildcard",
+        motif_set = joinpath(FIXTURES_DIR, "boundary_wildcard_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_boundary_wildcard_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
+        name = "query_fixed",
+        motif_set = joinpath(FIXTURES_DIR, "matchfix_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_query_fixed_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "matchfix=1", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
+        name = "search_fixed",
+        motif_set = joinpath(FIXTURES_DIR, "matchfix_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_search_fixed_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "matchfix=2", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
+        name = "both_fixed",
+        motif_set = joinpath(FIXTURES_DIR, "matchfix_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_both_fixed_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "matchfix=3", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
         name = "alternation",
         motif_set = joinpath(FIXTURES_DIR, "alternation_probe_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_alternation_probe_normalized.tsv"),

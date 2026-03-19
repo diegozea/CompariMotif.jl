@@ -54,13 +54,13 @@ that of [Edwards2008CompariMotif](@citet), which is nicely summarized in _Figure
 The score fields then tell you how strong that overlap is. `match_ic` is the
 raw information captured by the best alignment, `normalized_ic` puts that value
 on a comparable scale across motifs of different specificity, `core_ic` is the
-average information per aligned core position, and `score` combines
-`normalized_ic` with `matched_positions` for ranking. `matched_positions`
-counts informative aligned positions only, so positions where both motifs use a
-wildcard do not contribute to that total. `matched_pattern` is a compact
-rendering of the winning overlap: uppercase symbols usually mark clean exact
-agreement, whereas lowercase symbols mark positions broadened by ambiguity or
-wildcard handling.
+fraction of aligned-core information retained relative to the more informative
+side at each aligned position, and `score` combines `normalized_ic` with
+`matched_positions` for ranking. `matched_positions` counts informative aligned
+positions only, so positions where both motifs use a wildcard do not contribute
+to that total. `matched_pattern` is a compact rendering of the winning overlap:
+uppercase symbols usually mark clean exact agreement, whereas lowercase symbols
+mark positions broadened by ambiguity or wildcard handling.
 
 The same fields become table columns when you call [`to_column_table`](@ref).
 In that tabular form, `query` and `search` keep the original motif strings,

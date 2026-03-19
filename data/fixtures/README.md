@@ -7,6 +7,8 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `generate_oracle_fixture.jl`: regeneration script (black-box oracle usage only).
 - `regression_motifs.tsv`: input motif set used for fixture generation (`#` comments allowed; one motif regex per non-comment line).
 - `default_probe_motifs.tsv`: discriminative motif set for default-option parity checks.
+- `boundary_wildcard_probe_motifs.tsv`: motif set targeting clipped boundary-wildcard containments and the corresponding oracle overlap/exact distinctions.
+- `matchfix_probe_motifs.tsv`: motif set targeting `matchfix` overlap clipping parity, while retaining oracle-allowed exact-subsequence cases.
 - `alternation_probe_motifs.tsv`: motif set with grouping/alternation syntax for oracle parity checks.
 - `exact_prefilter_probe_motifs.tsv`: motif set targeting exact-match, exact-subsequence, and exact-overlap pre-pass parity checks.
 - `score_tiebreak_probe_motifs.tsv`: motif set targeting branch/shift competitions that should be resolved by `Score` after `MatchIC` and `MatchPos`.
@@ -17,6 +19,10 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `cornercase_probe_motifs.tsv`: motif set targeting whitespace handling and permissive regex corner cases.
 - `oracle_regression_normalized.tsv`: normalized, deterministic oracle output used by tests.
 - `oracle_default_probe_normalized.tsv`: normalized oracle-default output used by tests.
+- `oracle_boundary_wildcard_probe_normalized.tsv`: normalized oracle output for clipped boundary-wildcard containment parity tests.
+- `oracle_query_fixed_probe_normalized.tsv`: normalized oracle output for `matchfix=1` (`:query_fixed`) parity tests.
+- `oracle_search_fixed_probe_normalized.tsv`: normalized oracle output for `matchfix=2` (`:search_fixed`) parity tests.
+- `oracle_both_fixed_probe_normalized.tsv`: normalized oracle output for `matchfix=3` (`:both_fixed`) parity tests.
 - `oracle_alternation_probe_normalized.tsv`: normalized oracle output for grouping/alternation tests.
 - `oracle_exact_prefilter_probe_normalized.tsv`: normalized oracle output for exact-match pre-pass parity tests.
 - `oracle_score_tiebreak_probe_normalized.tsv`: normalized oracle output for score-based tie-break tests.
@@ -48,6 +54,10 @@ This rewrites all normalized fixture outputs:
 ```bash
 oracle_regression_normalized.tsv
 oracle_default_probe_normalized.tsv
+oracle_boundary_wildcard_probe_normalized.tsv
+oracle_query_fixed_probe_normalized.tsv
+oracle_search_fixed_probe_normalized.tsv
+oracle_both_fixed_probe_normalized.tsv
 oracle_alternation_probe_normalized.tsv
 oracle_exact_prefilter_probe_normalized.tsv
 oracle_score_tiebreak_probe_normalized.tsv
@@ -63,6 +73,10 @@ To regenerate one fixture set only:
 export SLiMSuite_PATH=/path/to/SLiMSuite
 julia --project=. data/fixtures/generate_oracle_fixture.jl regression
 julia --project=. data/fixtures/generate_oracle_fixture.jl defaults
+julia --project=. data/fixtures/generate_oracle_fixture.jl boundary_wildcard
+julia --project=. data/fixtures/generate_oracle_fixture.jl query_fixed
+julia --project=. data/fixtures/generate_oracle_fixture.jl search_fixed
+julia --project=. data/fixtures/generate_oracle_fixture.jl both_fixed
 julia --project=. data/fixtures/generate_oracle_fixture.jl alternation
 julia --project=. data/fixtures/generate_oracle_fixture.jl exact_prefilter
 julia --project=. data/fixtures/generate_oracle_fixture.jl score_tiebreak
@@ -77,6 +91,12 @@ julia --project=. data/fixtures/generate_oracle_fixture.jl cornercases
 `oracle_default_probe_normalized.tsv` is generated from oracle defaults
 (`minshare=2`, `normcut=0.5`, `matchfix=0`, `mismatches=0`, `overlaps=T`)
 using `default_probe_motifs.tsv`.
+
+### Boundary-Wildcard Probe Fixture
+
+`oracle_boundary_wildcard_probe_normalized.tsv` is generated with
+`minshare=1`, `normcut=0`, and `matchfix=0` using
+`boundary_wildcard_probe_motifs.tsv`.
 
 ## Test Independence
 

@@ -432,6 +432,21 @@ end
         matchfix = :query_fixed)
     qfixed = compare("AK", "A.", qfixed_options)
     @test !qfixed.matched
+    @test !compare("A[KR]L", "RL", qfixed_options).matched
+    @test !compare("A.K", ".K", qfixed_options).matched
+    @test !compare("A.K", "A.", qfixed_options).matched
+    @test !compare("AK.A", "AK.", qfixed_options).matched
+    @test compare("A[KR]L", "[KR]L", qfixed_options).matched
+    @test compare(".AA", ".A", qfixed_options).matched
+    @test compare("AA.", "A.", qfixed_options).matched
+    @test compare("AK.A", "K.A", qfixed_options).matched
+    @test compare("A.KA", "A.K", qfixed_options).matched
+    @test compare(".K", "A.K", qfixed_options).matched
+    qfixed_boundary = compare(".[KR]", "K.[KR].", qfixed_options)
+    @test qfixed_boundary.matched
+    @test qfixed_boundary.query_relationship == "Degenerate Overlap"
+    @test qfixed_boundary.search_relationship == "Variant Overlap"
+    @test qfixed_boundary.core_ic ≈ 0.769 atol = 1e-3
 
     sfixed_options = ComparisonOptions(;
         min_shared_positions = 1,
@@ -439,6 +454,38 @@ end
         matchfix = :search_fixed)
     sfixed = compare("A.", "AK", sfixed_options)
     @test !sfixed.matched
+    @test !compare("IPI", "[IPV]IAL", sfixed_options).matched
+    @test !compare("RL", "A[KR]L", sfixed_options).matched
+    @test !compare(".K", "A.K", sfixed_options).matched
+    @test !compare("A.", "A.K", sfixed_options).matched
+    @test !compare("AK.", "AK.A", sfixed_options).matched
+    @test compare("[KR]L", "A[KR]L", sfixed_options).matched
+    @test compare(".A", ".AA", sfixed_options).matched
+    @test compare("A.", "AA.", sfixed_options).matched
+    @test compare("K.A", "AK.A", sfixed_options).matched
+    @test compare("A.K", "A.KA", sfixed_options).matched
+    @test compare("A.K", ".K", sfixed_options).matched
+
+    both_fixed_options = ComparisonOptions(;
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0,
+        matchfix = :both_fixed)
+    @test !compare("[IPV]IAL", "IPI", both_fixed_options).matched
+    @test !compare("A[KR]L", "RL", both_fixed_options).matched
+    @test !compare("A.K", ".K", both_fixed_options).matched
+    @test !compare(".K", "A.K", both_fixed_options).matched
+    @test !compare("A.K", "A.", both_fixed_options).matched
+    @test !compare("A.", "A.K", both_fixed_options).matched
+    @test !compare("AK.A", "AK.", both_fixed_options).matched
+    @test !compare("AK.", "AK.A", both_fixed_options).matched
+    @test compare("AKLI", "KLI", both_fixed_options).matched
+    @test compare("A[KR]L", "[KR]L", both_fixed_options).matched
+    @test compare("[IPV]IAL", "IAL", both_fixed_options).matched
+    @test compare(".AA", ".A", both_fixed_options).matched
+    @test compare("AA.", "A.", both_fixed_options).matched
+    @test compare("AK.A", "K.A", both_fixed_options).matched
+    @test compare("A.KA", "A.K", both_fixed_options).matched
+    @test !compare("AKLI", "KLIA", both_fixed_options).matched
 
     mm0 = compare("AK", "AQ", base_options)
     @test !mm0.matched
@@ -470,6 +517,23 @@ end
     overlap_default = compare("A[KR]", "A[RQ]", defaults)
     @test overlap_default.matched
     @test overlap_default.query_relationship == "Complex Match"
+    boundary_overlap = compare(
+        ".[KR]", "K.[KR].", ComparisonOptions(;
+            min_shared_positions = 1,
+            normalized_ic_cutoff = 0.0
+        ))
+    @test boundary_overlap.matched
+    @test boundary_overlap.query_relationship == "Degenerate Overlap"
+    @test boundary_overlap.search_relationship == "Variant Overlap"
+    @test boundary_overlap.core_ic ≈ 0.769 atol = 1e-3
+    reverse_boundary = compare(
+        "K.[KR].", ".[KR]", ComparisonOptions(;
+            min_shared_positions = 1,
+            normalized_ic_cutoff = 0.0
+        ))
+    @test reverse_boundary.matched
+    @test reverse_boundary.query_relationship == "Exact Parent"
+    @test reverse_boundary.search_relationship == "Exact Subsequence"
     @test !compare(
         "A[KR]",
         "A[RQ]",

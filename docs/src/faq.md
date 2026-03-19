@@ -125,11 +125,11 @@ julia> show(df, allrows = true, allcols = true)
    2 │           1             2  RKLI        R[KR]L[IV]  RKLI              R[RK]L[IV]            true  Variant Match       Degenerate Match     R[rk]L[iv]                       4   3.53724            1.0  0.884311      4.0            4.0                 3.53724
    3 │           1             3  RKLI        [ST]P       RKLI              [ST]P                false  No Match            No Match                                              0   0.0                0.0  0.0           0.0            0.0                 0.0
    4 │           2             1  R[KR]L[IV]  RKLI        R[RK]L[IV]        RKLI                  true  Degenerate Match    Variant Match        R[rk]L[iv]                       4   3.53724            1.0  0.884311      4.0            3.53724             4.0
-   5 │           2             2  R[KR]L[IV]  R[KR]L[IV]  R[RK]L[IV]        R[RK]L[IV]            true  Exact Match         Exact Match          R[RK]L[IV]                       4   3.53724            1.0  0.884311      4.0            3.53724             3.53724
+   5 │           2             2  R[KR]L[IV]  R[KR]L[IV]  R[RK]L[IV]        R[RK]L[IV]            true  Exact Match         Exact Match          R[RK]L[IV]                       4   3.53724            1.0  1.0           4.0            3.53724             3.53724
    6 │           2             3  R[KR]L[IV]  [ST]P       R[RK]L[IV]        [ST]P                false  No Match            No Match                                              0   0.0                0.0  0.0           0.0            0.0                 0.0
    7 │           3             1  [ST]P       RKLI        [ST]P             RKLI                 false  No Match            No Match                                              0   0.0                0.0  0.0           0.0            0.0                 0.0
    8 │           3             2  [ST]P       R[KR]L[IV]  [ST]P             R[RK]L[IV]           false  No Match            No Match                                              0   0.0                0.0  0.0           0.0            0.0                 0.0
-   9 │           3             3  [ST]P       [ST]P       [ST]P             [ST]P                 true  Exact Match         Exact Match          [ST]P                            2   1.76862            1.0  0.884311      2.0            1.76862             1.76862
+   9 │           3             3  [ST]P       [ST]P       [ST]P             [ST]P                 true  Exact Match         Exact Match          [ST]P                            2   1.76862            1.0  1.0           2.0            1.76862             1.76862
 ```
 
 ## How do I persist comparison results and load them in another Julia session?

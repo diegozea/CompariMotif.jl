@@ -70,12 +70,17 @@ function _compare_positions(
         if qpos.kind == spos.kind
             return (hard_mismatch = false, mismatch = false,
                 relation = _REL_EXACT, intersection = ResidueMask(0), ic = 1.0,
+                core_ic_denominator = 1.0,
                 contributes_position = true, exact_fixed = false)
         end
         return (hard_mismatch = true, mismatch = true,
             relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
+            core_ic_denominator = 0.0,
             contributes_position = false, exact_fixed = false)
     end
+
+    q_ic = _position_ic(qpos, spec, residue_frequencies)
+    s_ic = _position_ic(spos, spec, residue_frequencies)
 
     qclass = ResidueClass(qpos.mask)
     sclass = ResidueClass(spos.mask)
@@ -85,6 +90,7 @@ function _compare_positions(
         # No shared residue -> mismatch position (allowed only if mismatch budget allows).
         return (hard_mismatch = false, mismatch = true,
             relation = _REL_COMPLEX, intersection = intersection, ic = 0.0,
+            core_ic_denominator = max(q_ic, s_ic),
             contributes_position = false, exact_fixed = false)
     end
 
@@ -100,6 +106,7 @@ function _compare_positions(
     else
         return (hard_mismatch = true, mismatch = true, relation = _REL_COMPLEX,
             intersection = intersection, ic = 0.0,
+            core_ic_denominator = max(q_ic, s_ic),
             contributes_position = false, exact_fixed = false)
     end
 
@@ -109,13 +116,11 @@ function _compare_positions(
     ic = if relation == _REL_COMPLEX
         _position_ic(_Position(_RESIDUE, unionclass(qclass, sclass).mask), spec, residue_frequencies)
     else
-        min(
-            _position_ic(qpos, spec, residue_frequencies),
-            _position_ic(spos, spec, residue_frequencies)
-        )
+        min(q_ic, s_ic)
     end
     # Matched position count excludes wildcard-vs-wildcard.
     contributes = !_is_wildcard(qpos, spec.mask) && !_is_wildcard(spos, spec.mask)
+    core_ic_denominator = max(q_ic, s_ic)
     # Used for matchfix tie-break logic.
     exact_fixed = relation == _REL_EXACT && _is_fixed(qpos) && _is_fixed(spos)
     return (
@@ -124,6 +129,7 @@ function _compare_positions(
         relation = relation,
         intersection = intersection,
         ic = ic,
+        core_ic_denominator = core_ic_denominator,
         contributes_position = contributes,
         exact_fixed = exact_fixed
     )
@@ -157,6 +163,89 @@ function _search_fixed_required(mode::Symbol)
         return false
     end
     throw(_matchfix_argument_error())
+end
+
+"""
+    _clips_fixed_prefix(positions, overlap_start)::Bool
+
+Return `true` when the constrained side clips one or more fixed residues before
+the aligned span.
+"""
+function _clips_fixed_prefix(
+        positions::AbstractVector{_Position},
+        overlap_start::Int
+)
+    @inbounds for idx in firstindex(positions):(overlap_start - 1)
+        if _is_fixed(positions[idx])
+            return true
+        end
+    end
+    return false
+end
+
+"""
+    _clips_fixed_suffix(positions, overlap_end)::Bool
+
+Return `true` when the constrained side clips one or more fixed residues after
+the aligned span.
+"""
+function _clips_fixed_suffix(
+        positions::AbstractVector{_Position},
+        overlap_end::Int
+)
+    @inbounds for idx in (overlap_end + 1):lastindex(positions)
+        if _is_fixed(positions[idx])
+            return true
+        end
+    end
+    return false
+end
+
+"""
+    _is_exact_contained_alignment(query_positions, search_positions, overlap_start, search_overlap_start, overlap_length)::Bool
+
+Return `true` when the aligned span covers the shorter motif completely and the
+contained alignment is exact position-for-position. The oracle only exempts
+these exact subsequence/parent cases from clipped fixed-position rejection
+under `matchfix` when the shorter motif keeps an informative boundary residue on
+each side where the constrained longer motif clips fixed positions.
+"""
+function _is_exact_contained_alignment(
+        query_positions::AbstractVector{_Position},
+        search_positions::AbstractVector{_Position},
+        overlap_start::Int,
+        search_overlap_start::Int,
+        overlap_length::Int,
+        query_clips_fixed_prefix::Bool,
+        query_clips_fixed_suffix::Bool,
+        search_clips_fixed_prefix::Bool,
+        search_clips_fixed_suffix::Bool,
+        wildcard_mask::ResidueMask
+)
+    qlen = length(query_positions)
+    slen = length(search_positions)
+    overlap_length == min(qlen, slen) || return false
+
+    if qlen < slen
+        return _matches_matchfix_exact_subsequence(
+            query_positions,
+            search_positions,
+            search_overlap_start,
+            wildcard_mask,
+            search_clips_fixed_prefix,
+            search_clips_fixed_suffix
+        )
+    elseif slen < qlen
+        return _matches_matchfix_exact_subsequence(
+            search_positions,
+            query_positions,
+            overlap_start,
+            wildcard_mask,
+            query_clips_fixed_prefix,
+            query_clips_fixed_suffix
+        )
+    end
+    return _matches_exact_subsequence(query_positions, search_positions, 1)
 end
 
 """
@@ -199,13 +288,46 @@ function _evaluate_alignment(
     overlap_end = min(qlen, slen + shift)
     overlap_length = overlap_end - overlap_start + 1
     overlap_length < 1 && return nothing
+    search_overlap_start = overlap_start - shift
+    search_overlap_end = overlap_end - shift
+
+    query_clips_fixed_prefix = _query_fixed_required(options.matchfix) &&
+                               _clips_fixed_prefix(query_variant.positions, overlap_start)
+    query_clips_fixed_suffix = _query_fixed_required(options.matchfix) &&
+                               _clips_fixed_suffix(query_variant.positions, overlap_end)
+    search_clips_fixed_prefix = _search_fixed_required(options.matchfix) &&
+                                _clips_fixed_prefix(
+        search_variant.positions,
+        search_overlap_start
+    )
+    search_clips_fixed_suffix = _search_fixed_required(options.matchfix) &&
+                                _clips_fixed_suffix(
+        search_variant.positions,
+        search_overlap_end
+    )
+    if (query_clips_fixed_prefix || query_clips_fixed_suffix ||
+        search_clips_fixed_prefix || search_clips_fixed_suffix) &&
+       !_is_exact_contained_alignment(
+        query_variant.positions,
+        search_variant.positions,
+        overlap_start,
+        search_overlap_start,
+        overlap_length,
+        query_clips_fixed_prefix,
+        query_clips_fixed_suffix,
+        search_clips_fixed_prefix,
+        search_clips_fixed_suffix,
+        spec.mask
+    )
+        return nothing
+    end
 
     matched_pattern = IOBuffer()
     matched_positions = 0
     exact_fixed_matches = 0
     mismatches = 0
     match_ic = 0.0
-    core_length = 0
+    core_ic_denominator = 0.0
     has_variant = false
     has_degenerate = false
     has_complex = false
@@ -218,10 +340,7 @@ function _evaluate_alignment(
         if cmp.hard_mismatch
             return nothing
         end
-        if !(_is_wildcard(qpos, spec.mask) && _is_wildcard(spos, spec.mask))
-            # Core length ignores dual-wildcard positions.
-            core_length += 1
-        end
+        core_ic_denominator += cmp.core_ic_denominator
 
         if cmp.mismatch
             mismatches += 1
@@ -264,7 +383,9 @@ function _evaluate_alignment(
         return nothing
     end
 
-    core_ic = core_length > 0 ? (match_ic / core_length) : 0.0
+    # Oracle `CoreIC` is normalized by the more informative side of each aligned
+    # position, not by a raw core-position count.
+    core_ic = core_ic_denominator > 0 ? (match_ic / core_ic_denominator) : 0.0
     score = normalized_ic * matched_positions
     rel_type = _relationship_type_from_flags(has_variant, has_degenerate, has_complex)
     rel_length = _relationship_length(qlen, slen, overlap_length)
@@ -334,6 +455,124 @@ function _matches_exact_subsequence(
 end
 
 """
+    _matches_matchfix_exact_subsequence(shorter, longer, start, wildcard_mask)::Bool
+
+Return `true` when `shorter` is an exact contained subsequence of `longer` and
+the shorter motif keeps an informative edge residue on every side where the
+constrained longer motif clips fixed positions. Wildcards away from those
+clipped boundaries are still allowed by the oracle.
+"""
+function _matches_matchfix_exact_subsequence(
+        shorter::AbstractVector{_Position},
+        longer::AbstractVector{_Position},
+        start::Int,
+        wildcard_mask::ResidueMask,
+        require_leading_informative::Bool,
+        require_trailing_informative::Bool
+)
+    @inbounds for i in eachindex(shorter)
+        apos = shorter[i]
+        bpos = longer[start + i - 1]
+        if apos.kind != bpos.kind || apos.mask != bpos.mask
+            return false
+        end
+    end
+    require_leading_informative &&
+        _is_wildcard(shorter[firstindex(shorter)], wildcard_mask) && return false
+    require_trailing_informative &&
+        _is_wildcard(shorter[lastindex(shorter)], wildcard_mask) && return false
+    return true
+end
+
+@inline function _first_informative_index(
+        positions::AbstractVector{_Position},
+        wildcard_mask::ResidueMask
+)
+    @inbounds for idx in eachindex(positions)
+        !_is_wildcard(positions[idx], wildcard_mask) && return idx
+    end
+    return nothing
+end
+
+@inline function _last_informative_index(
+        positions::AbstractVector{_Position},
+        wildcard_mask::ResidueMask
+)
+    @inbounds for idx in reverse(eachindex(positions))
+        !_is_wildcard(positions[idx], wildcard_mask) && return idx
+    end
+    return nothing
+end
+
+function _clipped_region_can_rebind(
+        positions::AbstractVector{_Position},
+        start::Int,
+        stop::Int,
+        target::_Position
+)
+    start > stop && return false
+    @inbounds for idx in start:stop
+        pos = positions[idx]
+        if pos.kind != target.kind
+            continue
+        end
+        if pos.kind != _RESIDUE ||
+           overlaps(ResidueClass(pos.mask), ResidueClass(target.mask))
+            return true
+        end
+    end
+    return false
+end
+
+"""
+    _matches_matchfix_precise_subsequence(shorter, longer, start, longer_constrained, wildcard_mask)::Bool
+
+Return `true` when an exact contained alignment should still be classified as an
+exact subsequence/parent under `matchfix`. When a wildcard sits on the clipped
+edge of the shorter motif, the oracle only keeps the exact classification if
+either the longer side is unconstrained and the clipped residues cannot rebind
+the nearest informative edge position, or the wildcard is on the opposite edge.
+"""
+function _matches_matchfix_precise_subsequence(
+        shorter::AbstractVector{_Position},
+        longer::AbstractVector{_Position},
+        start::Int,
+        longer_constrained::Bool,
+        wildcard_mask::ResidueMask
+)
+    _matches_exact_subsequence(shorter, longer, start) || return false
+
+    prefix_clipped = start > firstindex(longer)
+    suffix_clipped = (start + length(shorter) - 1) < lastindex(longer)
+
+    if prefix_clipped && _is_wildcard(shorter[firstindex(shorter)], wildcard_mask)
+        longer_constrained && return false
+        informative_idx = _first_informative_index(shorter, wildcard_mask)
+        informative_idx === nothing && return false
+        _clipped_region_can_rebind(
+            longer,
+            firstindex(longer),
+            start - 1,
+            shorter[informative_idx]
+        ) && return false
+    end
+
+    if suffix_clipped && _is_wildcard(shorter[lastindex(shorter)], wildcard_mask)
+        longer_constrained && return false
+        informative_idx = _last_informative_index(shorter, wildcard_mask)
+        informative_idx === nothing && return false
+        _clipped_region_can_rebind(
+            longer,
+            start + length(shorter),
+            lastindex(longer),
+            shorter[informative_idx]
+        ) && return false
+    end
+
+    return true
+end
+
+"""
     _find_precise_match(query_variants, search_variants, options, spec)
 
 Search only exact same / exact-subsequence relationships. Returns
@@ -371,7 +610,13 @@ function _find_precise_match(
 
             if qlen <= slen
                 for start in 1:(slen - qlen + 1)
-                    if !_matches_exact_subsequence(qvariant.positions, svariant.positions, start)
+                    if !_matches_matchfix_precise_subsequence(
+                        qvariant.positions,
+                        svariant.positions,
+                        start,
+                        _search_fixed_required(options.matchfix),
+                        spec.mask
+                    )
                         continue
                     end
                     found_precise = true
@@ -385,7 +630,13 @@ function _find_precise_match(
 
             if slen < qlen
                 for start in 1:(qlen - slen + 1)
-                    if !_matches_exact_subsequence(svariant.positions, qvariant.positions, start)
+                    if !_matches_matchfix_precise_subsequence(
+                        svariant.positions,
+                        qvariant.positions,
+                        start,
+                        _query_fixed_required(options.matchfix),
+                        spec.mask
+                    )
                         continue
                     end
                     found_precise = true

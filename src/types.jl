@@ -18,8 +18,9 @@ Fields:
 - `match_ic`: raw information content captured by the selected alignment.
 - `normalized_ic`: `match_ic` scaled by the less informative of the two motif
   variants, making hits easier to compare across motif lengths and specificity.
-- `core_ic`: average information per aligned core position
-  (`match_ic / core_overlap_length`).
+- `core_ic`: fraction of aligned-core information retained by the selected
+  alignment (`match_ic / sum(max(position_ic(query_i), position_ic(search_i)))`
+  across non-dual-wildcard aligned positions).
 - `score`: derived summary score (`normalized_ic * matched_positions`).
 - `query_information`, `search_information`: total information content for the
   winning query and search motif variants.

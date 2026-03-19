@@ -1,0 +1,23 @@
+# Motif set used to validate matchfix overlap clipping parity against the oracle.
+AKLI
+AKL
+KLI
+KLIA
+[IPV]IAL
+IPI
+IAL
+A[KR]L
+[KR]L
+RL
+A.K
+.K
+AA.
+A.
+.AA
+.A
+AK.A
+K.A
+AK.
+A.KA
+.[KR]
+K.[KR].
