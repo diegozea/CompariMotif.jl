@@ -633,23 +633,24 @@ end
 @testitem "candidate tie-break ordering" begin
     variant = CompariMotif._MotifVariant(CompariMotif._Position[], "", 1.0)
 
-    function candidate(; matched_positions, exact_fixed_matches, match_ic = 1.0, score = 1.0)
-        return CompariMotif._Candidate(
-            variant,
-            variant,
-            CompariMotif._REL_EXACT,
-            CompariMotif._LEN_MATCH,
-            CompariMotif._REL_EXACT,
-            CompariMotif._LEN_MATCH,
-            "",
-            matched_positions,
-            exact_fixed_matches,
-            match_ic,
-            1.0,
-            1.0,
-            score
-        )
-    end
+    candidate = (; matched_positions,
+        exact_fixed_matches,
+        match_ic = 1.0,
+        score = 1.0) -> CompariMotif._Candidate(
+        variant,
+        variant,
+        CompariMotif._REL_EXACT,
+        CompariMotif._LEN_MATCH,
+        CompariMotif._REL_EXACT,
+        CompariMotif._LEN_MATCH,
+        "",
+        matched_positions,
+        exact_fixed_matches,
+        match_ic,
+        1.0,
+        1.0,
+        score
+    )
 
     more_positions = candidate(; matched_positions = 3, exact_fixed_matches = 0)
     fewer_positions = candidate(; matched_positions = 2, exact_fixed_matches = 1)

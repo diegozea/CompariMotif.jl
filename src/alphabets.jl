@@ -46,7 +46,11 @@ function _build_alphabet_spec(::Type{A}) where {A <: _Alphabet}
     for (i, aa) in enumerate(chars)
         index[aa] = i
     end
+    # TODO : Add a comment to explain the bit operations here and how it initiallizes 
+    # the mask.
     mask = ResidueMask((1 << length(chars)) - 1)
+    # TODO: Add a comment to explain why we take the log of the alphabet length 
+    # as the log base, and how it is used later in the code.
     return _AlphabetSpec(chars, index, mask, log(length(chars)))
 end
 
