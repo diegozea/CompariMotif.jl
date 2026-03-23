@@ -46,11 +46,17 @@ function _build_alphabet_spec(::Type{A}) where {A <: _Alphabet}
     for (i, aa) in enumerate(chars)
         index[aa] = i
     end
-    # TODO : Add a comment to explain the bit operations here and how it initiallizes 
-    # the mask.
-    mask = ResidueMask((1 << length(chars)) - 1)
-    # TODO: Add a comment to explain why we take the log of the alphabet length 
-    # as the log base, and how it is used later in the code.
+    # Residue i (from 1:n in `chars`) is stored in bit i - 1, so the mask uses bits
+    # 0:(n - 1). Shifting a single set bit past the alphabet width and subtracting
+    # one fills those lower n bits with ones, which initializes the "all residues
+    # allowed" mask for this alphabet. Example: if n = 4, then `0b0001 << 4 ==
+    # 0b10000` and subtracting `0b0001` gives `0x0f`, i.e `0b01111`, so the first 
+    # four bits are.
+    mask = (ResidueMask(1) << length(chars)) - ResidueMask(1)
+    # `_position_ic` computes `-log(mass) / spec.log_base`; storing `log(|alphabet|)`
+    # once lets us normalize information content into alphabet-sized units, so a
+    # fully fixed residue contributes 1.0 and a wildcard contributes 0.0 regardless
+    # of whether we are working with protein, DNA, or RNA motifs.
     return _AlphabetSpec(chars, index, mask, log(length(chars)))
 end
 
