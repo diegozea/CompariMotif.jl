@@ -1,6 +1,7 @@
 @testitem "internal motif normalization syntax" begin
     @test CompariMotif._normalize_motif("r[kR].{0,1}l") == "R[RK].{0,1}L"
     @test CompariMotif._normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]."
+    @test CompariMotif._normalize_motif("[KKAQ]") == "[AQK]"
     @test_throws ArgumentError CompariMotif._normalize_motif("x(1,2)")
 end
 
@@ -46,6 +47,10 @@ end
     @test CompariMotif._normalize_motif("A\${2}") == "A\${2}"
     @test CompariMotif._normalize_motif("A{0,1}") == "A{0,1}"
     @test CompariMotif._normalize_motif("A{2,1}") == "A{2,1}"
+    @test CompariMotif._normalize_motif("(Q|.)") == "(Q)|(.)"
+    @test CompariMotif._normalize_motif("(Q|x)") == "(Q)|(.)"
+    @test CompariMotif._normalize_motif("(Q|X)") == "(Q)|(.)"
+    @test CompariMotif._normalize_motif("(Q|[ARNDCQEGHILKMFPSTWYV])") == "(Q)|(.)"
 
     retained = only(CompariMotif._expand_variants(
         CompariMotif._parse_motif("A{0}", options), options, spec))
@@ -66,6 +71,75 @@ end
         CompariMotif._parse_motif("A{2,1}", options), options, spec)
     @test isempty(impossible)
     @test !compare("A{2,1}", "A", options).matched
+
+    dot_group = CompariMotif._parse_motif("(Q|.)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in dot_group.alternatives] == ["Q", "."]
+    @test compare("(Q|.)", "Q", options).matched
+
+    upper_x_group = CompariMotif._parse_motif("(Q|X)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in upper_x_group.alternatives] == ["Q", "."]
+    @test compare("(Q|X)", "Q", options).matched
+    @test compare("Q|X", "Q", options).matched
+
+    lower_x_group = CompariMotif._parse_motif("(Q|x)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in lower_x_group.alternatives] == ["Q", "."]
+    @test compare("(Q|x)", "Q", options).matched
+
+    quantified_wildcard_group = CompariMotif._parse_motif("(Q|.){2}", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in quantified_wildcard_group.alternatives] == ["Q{2}", ".{2}"]
+    @test compare("(Q|.){2}", "QQ", options).matched
+    @test compare("(Q|x){2}", "QQ", options).matched
+    @test compare("(Q|X){2}", "QQ", options).matched
+
+    embedded_dot_group = CompariMotif._parse_motif("A(Q|.)L", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in embedded_dot_group.alternatives] ==
+          ["AQL", "A.L"]
+    @test compare("A(Q|.)L", "AQL", options).matched
+
+    suffix_dot_group = CompariMotif._parse_motif("(Q|.)L", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in suffix_dot_group.alternatives] ==
+          ["QL", ".L"]
+    @test compare("(Q|.)L", "QL", options).matched
+
+    prefix_dot_group = CompariMotif._parse_motif("A(Q|.)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in prefix_dot_group.alternatives] ==
+          ["AQ", "A."]
+    @test compare("A(Q|.)", "AQ", options).matched
+
+    embedded_upper_x_group = CompariMotif._parse_motif("A(Q|X)L", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in embedded_upper_x_group.alternatives] ==
+          ["AQL", "A.L"]
+    @test compare("A(Q|X)L", "AQL", options).matched
+
+    embedded_lower_x_group = CompariMotif._parse_motif("A(Q|x)L", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in embedded_lower_x_group.alternatives] ==
+          ["AQL", "A.L"]
+    @test compare("A(Q|x)L", "AQL", options).matched
+
+    retained_full_alphabet_group = compare("(Q|[ARNDCQEGHILKMFPSTWYV])", "Q", options)
+    @test retained_full_alphabet_group.matched
+    @test retained_full_alphabet_group.normalized_query == "(Q)|(.)"
+    @test compare(retained_full_alphabet_group.normalized_query, "Q", options).matched
+
+    dot_result = compare("(Q|.)", "Q", options)
+    lower_x_result = compare("(Q|x)", "Q", options)
+    upper_x_result = compare("(Q|X)", "Q", options)
+    for result in (dot_result, lower_x_result, upper_x_result)
+        @test result.matched
+        @test result.query_relationship == "Exact Match"
+        @test result.search_relationship == "Exact Match"
+        @test result.matched_pattern == "Q"
+        @test result.normalized_query == "(Q)|(.)"
+    end
 
     @test_throws ArgumentError CompariMotif._normalize_motif("A[Q")
     @test_throws ArgumentError CompariMotif._normalize_motif("A{-1,2}")
@@ -93,6 +167,42 @@ end
         @test fixed.information ≈ 1.0 atol = 1e-12
         @test CompariMotif._position_ic(only(fixed.positions), spec) ≈ 1.0 atol = 1e-12
     end
+end
+
+@testitem "positive character classes ignore duplicates" begin
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+
+    duplicate_class = compare("[KKAQ]", "Q", options)
+    unique_class = compare("[AQK]", "Q", options)
+    double_a = compare("[AA]", "A", options)
+    triple_a = compare("[AAA]", "A", options)
+    branch_selection = compare("N{1,2}Q([KKAQ]|[NW]{1,2}[TI])", "NQ[QK]", options)
+
+    @test CompariMotif._normalize_motif("[AA]") == "A"
+    @test CompariMotif._normalize_motif("[AAA]") == "A"
+    @test CompariMotif._normalize_motif("[KKAQ]") == "[AQK]"
+
+    @test duplicate_class.match_ic ≈ unique_class.match_ic atol = 1e-12
+    @test duplicate_class.query_information ≈ unique_class.query_information atol = 1e-12
+    @test duplicate_class.query_relationship == unique_class.query_relationship
+    @test duplicate_class.search_relationship == unique_class.search_relationship
+    @test duplicate_class.matched_pattern == unique_class.matched_pattern
+
+    @test double_a.query_relationship == "Exact Match"
+    @test double_a.search_relationship == "Exact Match"
+    @test double_a.match_ic ≈ 1.0 atol = 1e-12
+    @test triple_a.query_relationship == "Exact Match"
+    @test triple_a.search_relationship == "Exact Match"
+    @test triple_a.match_ic ≈ 1.0 atol = 1e-12
+
+    @test branch_selection.query_relationship == "Degenerate Match"
+    @test branch_selection.search_relationship == "Variant Match"
+    @test branch_selection.match_ic ≈ 2.6332742086579152 atol = 1e-12
+    @test branch_selection.normalized_ic ≈ 1.0 atol = 1e-12
+    @test branch_selection.core_ic ≈ 0.9511137350628183 atol = 1e-12
+    @test branch_selection.score ≈ 3.0 atol = 1e-12
+    @test branch_selection.query_information ≈ 2.6332742086579152 atol = 1e-12
+    @test branch_selection.normalized_query == "(N{1,2}Q[AQK])|(N{1,2}Q[NW]{1,2}[IT])"
 end
 
 @testitem "position comparison primitives" begin

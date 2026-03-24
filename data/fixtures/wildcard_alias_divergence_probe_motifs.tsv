@@ -1,0 +1,9 @@
+# Motif set used to capture the oracle's top-level grouped wildcard quirk for
+# the stable `.` spelling. Package tests separately assert that `x` and `X`
+# are treated identically to `.`.
+(Q|.)
+Q
+(Q|.){2}
+QQ
+A(Q|.)L
+AQL

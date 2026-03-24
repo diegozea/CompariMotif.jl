@@ -23,9 +23,10 @@
 - `compare` now also accepts a single query motif as the first argument and 
   a  collection of target motifs as the second argument.
 - When multiple candidate overlaps tie on `match_ic` and matched positions,
-  `compare` now prefers the higher final `score` before falling back to exact
-  fixed-position matches. This improves deterministic branch selection and
-  keeps the winning overlap aligned with the oracle-backed tie-break fixtures.
+  `compare` now prefers the higher final `score`, and otherwise keeps the
+  first candidate encountered in the oracle-backed shift/branch scan order.
+  This improves deterministic branch selection while matching the current
+  tie-break fixtures.
 - Added support for non-uniform residue frequencies through
   `ComparisonOptions(; residue_frequencies = ...)`, so information-content
   scoring can use a custom DNA, RNA, or protein background model instead of a
@@ -41,6 +42,13 @@
 - Fixed alternation-heavy motifs to enforce `max_variants` during grouped-branch
   parsing, so pathological branch growth is rejected before full parse-time
   expansion.
+- Wildcard aliases `x`, `X`, and `.` are now treated identically in canonical
+  parsing and normalization, even in top-level grouped alternations. This is an
+  intentional divergence from the current oracle quirk, which drops wildcard-only
+  top-level grouped branches such as `(Q|x)` and `(Q|.){2}`.
+- Positive character classes are intentionally treated as sets, so duplicate
+  residues like `[AA]` and `[A]` compare identically even though the current
+  oracle may score them differently.
 - Added a multi-page documentation manual with separate sections for the
   external API, the internal API and comparison pipeline, and a FAQ/how-to
   guide, plus a dedicated regex syntax reference for supported parser edge

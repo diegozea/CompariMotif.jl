@@ -323,6 +323,7 @@ function _parse_expr_alternatives(text::AbstractString, i::Int, max_variants::In
         end
 
         atom_alts, i = _parse_atom_alternatives(text, i, max_variants)
+        isempty(atom_alts) && return (String[], i)
         seq = _combine_concat(seq, atom_alts, text, max_variants)
     end
 end
@@ -360,6 +361,7 @@ function _parse_atom_alternatives(text::AbstractString, i::Int, max_variants::In
     end
     if char == '('
         inner_alts, next_i = _parse_expr_alternatives(text, nextind(text, i), max_variants)
+        isempty(inner_alts) && return (String[], next_i)
         next_i > lastindex(text) &&
             throw(ArgumentError("Unclosed grouping parenthesis in motif: $text"))
         text[next_i] == ')' || throw(ArgumentError("Malformed grouping in motif: $text"))
@@ -391,6 +393,7 @@ julia> CompariMotif._expand_grouped_motif("A(K|Q)L", 10)
 """
 function _expand_grouped_motif(text::AbstractString, max_variants::Int)
     alts, next_i = _parse_expr_alternatives(text, firstindex(text), max_variants)
+    isempty(alts) && return alts
     next_i <= lastindex(text) && text[next_i] != ')' &&
         throw(ArgumentError("Unexpected trailing content in motif: $text"))
 
@@ -464,13 +467,15 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
 
     spec = _alphabet_spec(options.alphabet)
     branches = _expand_grouped_motif(parse_window, options.max_variants)
+    isempty(branches) &&
+        return _ParsedMotif(String(motif), parse_window, _Token[], Vector{_Token}[])
     alternatives = Vector{_Token}[]
-    normalized_branches = String[]
     for branch in branches
         branch_tokens = _parse_linear_tokens(branch, spec)
         push!(alternatives, branch_tokens)
-        push!(normalized_branches, _normalized_from_tokens(branch_tokens))
     end
+    normalized_branches = [_normalized_from_tokens(branch_tokens)
+                           for branch_tokens in alternatives]
     normalized = if length(normalized_branches) == 1
         first(normalized_branches)
     else

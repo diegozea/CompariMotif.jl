@@ -34,7 +34,11 @@ The current code path for a pairwise comparison is:
 Parsing is the syntax-level normalization step. It canonicalizes residue
 classes and wildcard notation, records any alternation branches, and preserves
 bounded repeats in normalized form so later stages can expand them
-deliberately.
+deliberately. Wildcard aliases are canonicalized to `.` even where the current
+oracle has a grouped-alternation quirk, because the package treats `x`, `X`,
+and `.` as intentionally equivalent syntax. Positive character classes are also
+treated as sets, so duplicate residues are discarded even though the oracle can
+score them differently.
 
 ```@repl internal_api_pipeline
 using CompariMotif # hide
@@ -86,9 +90,9 @@ Alignment scoring evaluates one query variant against one search variant at a
 specific relative shift. Each candidate carries the matched pattern, matched
 positions, relationship labels, and the information-content-derived metrics
 used for ranking. The current implementation orders candidates by higher
-`match_ic`, then `matched_positions`, then `score`, then exact fixed-position
-matches. If all of those still tie, the first candidate encountered in the
-shift scan inferred from black-box oracle tie cases is kept.
+`match_ic`, then `matched_positions`, then `score`. If all of those still tie,
+the first candidate encountered in the shift scan inferred from black-box
+oracle tie cases is kept.
 `normalized_ic`, `core_ic`, and `score` are still materialized on the
 candidate for inspection and output.
 

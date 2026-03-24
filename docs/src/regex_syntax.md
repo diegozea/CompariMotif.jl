@@ -12,10 +12,13 @@ Motif parsing supports a controlled regex-like subset.
   - RNA (`alphabet=RNAAlphabet()`): `ACGU`
 - Wildcards:
   - `.` is the canonical wildcard in normalized and output motifs.
-  - `x` and `X` are accepted input aliases and mean the same thing.
+  - `x` and `X` are accepted input aliases and mean the same thing as `.` in
+    this package.
 - Character classes:
   - `[KR]` includes listed residues.
   - `[^P]` is negation within the selected alphabet only.
+  - repeated residues inside positive classes are ignored, so `[KKAQ]`,
+    `[AQK]`, and `[QQAAK]` all normalize to the same residue set.
 - Anchors:
   - `^` and `$` indicate N- and C-terminus for protein motifs, or 5' and 3' ends for nucleic acid motifs.
 - Repeat quantifiers:
@@ -40,6 +43,16 @@ stricter regex grammar.
   behavior rather than standard regex repetition semantics. For example,
   `(A|C){2}` expands to `AA` and `CC`, while `(AC|GT){2}` expands to `ACC`
   and `GTT` (equivalently normalized as `(AC{2})|(GT{2})`).
+- The upstream black-box oracle has a grouped-alternation quirk where
+  top-level wildcard-only branches such as `(Q|.)`, `(Q|x)`, `(Q|X)`, and
+  `(Q|.){2}` are dropped entirely, while embedded forms like `A(Q|x)L` still
+  expand. This package intentionally does not reproduce that behavior. Instead, 
+  canonical normalization always treats `x`, `X`, `.`, and explicit
+  full-alphabet classes as the same wildcard syntax. For example,
+  `(Q|[ARNDCQEGHILKMFPSTWYV])` normalizes as `(Q)|(.)`.
+- The upstream oracle also scores duplicate residues inside positive classes,
+  but this package intentionally treats character classes as sets. For example,
+  `[AA]` and `[A]` are equivalent here even though the oracle can distinguish them.
 - Some malformed constructs are treated as non-retained motifs rather than hard parse
   failures, such as `A{2,1}` producing zero retained variants.
 - Truly malformed syntax is still rejected when the oracle also rejects it, for

@@ -103,6 +103,15 @@ const FIXTURE_SPECS = (
         dna = false
     ),
     (
+        name = "wildcard_alias_divergence",
+        motif_set = joinpath(FIXTURES_DIR, "wildcard_alias_divergence_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_wildcard_alias_divergence_normalized.tsv"),
+        columns = ALTERNATION_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
         name = "exact_prefilter",
         motif_set = joinpath(FIXTURES_DIR, "exact_prefilter_probe_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_exact_prefilter_probe_normalized.tsv"),

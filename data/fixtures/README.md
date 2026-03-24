@@ -11,6 +11,7 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `matchfix_probe_motifs.tsv`: motif set targeting `matchfix` overlap clipping parity, while retaining oracle-allowed exact-subsequence cases.
 - `coreic_probe_motifs.tsv`: motif set targeting `CoreIC` corner cases and anchor/mismatch-sensitive cases; the exact `A..K` / `A..K` wildcard-denominator probe is covered separately by a direct regression test to avoid duplicated motifs that need names for identification.
 - `alternation_probe_motifs.tsv`: motif set with grouping/alternation syntax for oracle parity checks.
+- `wildcard_alias_divergence_probe_motifs.tsv`: motif set documenting the oracle's top-level grouped wildcard quirk using the stable `.` spelling; package tests separately lock down the intentional `x`/`X` alias equivalence because grouped `x`/`X` probes are unstable under the local Python-3 oracle.
 - `exact_prefilter_probe_motifs.tsv`: motif set targeting exact-match, exact-subsequence, and exact-overlap pre-pass parity checks.
 - `score_tiebreak_probe_motifs.tsv`: motif set targeting branch/shift competitions that should be resolved by `Score` after `MatchIC` and `MatchPos`.
 - `nonuniform_probe_motifs.tsv`: motif set targeting non-uniform background-frequency scoring, including partial ambiguous overlaps that the oracle labels as `Ugly Match`.
@@ -27,6 +28,7 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `oracle_coreic_probe_normalized.tsv`: normalized oracle output for low-threshold `CoreIC` corner-case parity tests.
 - `oracle_coreic_mismatch_probe_normalized.tsv`: normalized oracle output for `mismatches=1` `CoreIC` parity tests.
 - `oracle_alternation_probe_normalized.tsv`: normalized oracle output for grouping/alternation tests.
+- `oracle_wildcard_alias_divergence_normalized.tsv`: normalized oracle output used to lock down the intentional wildcard-alias divergence documentation.
 - `oracle_exact_prefilter_probe_normalized.tsv`: normalized oracle output for exact-match pre-pass parity tests.
 - `oracle_score_tiebreak_probe_normalized.tsv`: normalized oracle output for score-based tie-break tests.
 - `oracle_nonuniform_probe_normalized.tsv`: normalized oracle output for non-uniform frequency scoring tests.
@@ -64,6 +66,7 @@ oracle_both_fixed_probe_normalized.tsv
 oracle_coreic_probe_normalized.tsv
 oracle_coreic_mismatch_probe_normalized.tsv
 oracle_alternation_probe_normalized.tsv
+oracle_wildcard_alias_divergence_normalized.tsv
 oracle_exact_prefilter_probe_normalized.tsv
 oracle_score_tiebreak_probe_normalized.tsv
 oracle_nonuniform_probe_normalized.tsv
@@ -85,6 +88,7 @@ julia --project=. data/fixtures/generate_oracle_fixture.jl both_fixed
 julia --project=. data/fixtures/generate_oracle_fixture.jl coreic
 julia --project=. data/fixtures/generate_oracle_fixture.jl coreic_mismatch
 julia --project=. data/fixtures/generate_oracle_fixture.jl alternation
+julia --project=. data/fixtures/generate_oracle_fixture.jl wildcard_alias_divergence
 julia --project=. data/fixtures/generate_oracle_fixture.jl exact_prefilter
 julia --project=. data/fixtures/generate_oracle_fixture.jl score_tiebreak
 julia --project=. data/fixtures/generate_oracle_fixture.jl nonuniform
