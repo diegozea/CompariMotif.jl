@@ -91,6 +91,9 @@ function _compare_positions(
         spec::_AlphabetSpec,
         residue_frequencies::AbstractVector{<:Real}
 )
+    # TODO: This function is too long and complex. Refactor into smaller pieces with 
+    # clear responsibilities.
+
     # Oracle mismatch-tolerant overlaps can align anchors against non-anchor
     # positions. Those anchor mismatches consume mismatch budget but still
     # contribute the aligned anchor information to the CoreIC denominator.
@@ -210,6 +213,9 @@ function _search_fixed_required(mode::Symbol)
     throw(_matchfix_argument_error())
 end
 
+# TODO: Add comments to explain what are clipped and fixed positions in this context.
+
+# TODO: Add an example or jldoctest to illustrate the concept inside the docstring.
 """
     _clips_fixed_prefix(positions, overlap_start)::Bool
 
@@ -360,6 +366,9 @@ function _evaluate_alignment(
         spec::_AlphabetSpec,
         residue_frequencies::AbstractVector{<:Real}
 )
+    # TODO: This function is too long and complex. Refactor into smaller pieces with
+    # clear responsibilities.
+    
     qlen = length(query_variant.positions)
     slen = length(search_variant.positions)
     # Shift convention:
