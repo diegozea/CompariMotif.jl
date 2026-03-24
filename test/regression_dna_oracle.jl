@@ -51,7 +51,7 @@
     end
 
     oracle_to_package(rel::String) = replace(rel, "Ugly" => "Complex")
-    oracle_to_package_match(text::String) = replace(text, '.' => 'x')
+    oracle_to_package_match(text::String) = text
 
     function assert_fixture(motifs_path::String, oracle_path::String, options::ComparisonOptions)
         patterns = load_fixture_motifs(motifs_path)

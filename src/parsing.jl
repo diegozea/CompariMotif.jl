@@ -158,12 +158,12 @@ function _mask_to_chars(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase::Bo
 end
 
 """
-    _mask_to_symbol(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase = false, wildcard_symbol = "x")::String
+    _mask_to_symbol(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase = false, wildcard_symbol = ".")::String
 
 Render one residue mask as canonical motif syntax.
 """
 function _mask_to_symbol(mask::ResidueMask, spec::_AlphabetSpec;
-        as_lowercase::Bool = false, wildcard_symbol::String = "x")
+        as_lowercase::Bool = false, wildcard_symbol::String = ".")
     # Full mask is represented as wildcard, not as long explicit class.
     if mask == spec.mask
         return as_lowercase ? Base.lowercase(wildcard_symbol) : wildcard_symbol
@@ -186,7 +186,7 @@ function _canonical_token(position::_Position, spec::_AlphabetSpec)
         return "\$"
     end
     # Residues/classes canonicalize through mask representation.
-    return _mask_to_symbol(position.mask, spec; as_lowercase = false, wildcard_symbol = "x")
+    return _mask_to_symbol(position.mask, spec)
 end
 
 # -----------------------------------------------------------------------------
@@ -216,7 +216,7 @@ julia> options = CompariMotif.ComparisonOptions(; min_shared_positions = 1, norm
 julia> parsed = CompariMotif._parse_motif("r[kR].{0,1}l", options);
 
 julia> CompariMotif._normalized_from_tokens(parsed.tokens)
-"R[RK]x{0,1}L"
+"R[RK].{0,1}L"
 ```
 """
 function _normalized_from_tokens(tokens::Vector{_Token})

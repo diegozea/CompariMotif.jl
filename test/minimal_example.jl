@@ -1,5 +1,5 @@
 @testitem "README minimal example" begin
-    motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]", "RxLE"]
+    motifs = ["RKLI", "R[KR]L[IV]", "[KR].L.[FYLIMVP]", "R.LE"]
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
     results = compare(motifs, options)
 

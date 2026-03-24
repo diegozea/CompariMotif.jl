@@ -16,7 +16,7 @@
     end
 
     @testset "matrix comparisons" begin
-        motifs = ["RKLI", "R[KR]L[IV]", "RxLE"]
+        motifs = ["RKLI", "R[KR]L[IV]", "R.LE"]
         options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
         results = compare(motifs, options)
         table = to_column_table(results)

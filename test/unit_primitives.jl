@@ -1,6 +1,6 @@
 @testitem "internal motif normalization syntax" begin
-    @test CompariMotif._normalize_motif("r[kR].{0,1}l") == "R[RK]x{0,1}L"
-    @test CompariMotif._normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]x"
+    @test CompariMotif._normalize_motif("r[kR].{0,1}l") == "R[RK].{0,1}L"
+    @test CompariMotif._normalize_motif("A[^P]x") == "A[ARNDCQEGHILKMFSTWYV]."
     @test_throws ArgumentError CompariMotif._normalize_motif("x(1,2)")
 end
 
@@ -72,9 +72,9 @@ end
 end
 
 @testitem "wildcard token equivalence" begin
-    @test CompariMotif._normalize_motif("A.Xx"; alphabet = ProteinAlphabet()) == "Axxx"
-    @test CompariMotif._normalize_motif("A.Xx"; alphabet = DNAAlphabet()) == "Axxx"
-    @test CompariMotif._normalize_motif("A.Xx"; alphabet = RNAAlphabet()) == "Axxx"
+    @test CompariMotif._normalize_motif("A.Xx"; alphabet = ProteinAlphabet()) == "A..."
+    @test CompariMotif._normalize_motif("A.Xx"; alphabet = DNAAlphabet()) == "A..."
+    @test CompariMotif._normalize_motif("A.Xx"; alphabet = RNAAlphabet()) == "A..."
 end
 
 @testitem "position information content" begin
@@ -842,11 +842,11 @@ end
 
 @testitem "matrix APIs" begin
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
-    motifs = ["RKLI", "R[KR]L[IV]", "[KR]xLx[FYLIMVP]"]
+    motifs = ["RKLI", "R[KR]L[IV]", "[KR].L.[FYLIMVP]"]
     matrix_self = compare(motifs, options)
     @test size(matrix_self) == (3, 3)
 
-    matrix_db = compare(motifs, ["RxLE", "RKL"], options)
+    matrix_db = compare(motifs, ["R.LE", "RKL"], options)
     @test size(matrix_db) == (3, 2)
     @test matrix_db[3, 1].matched
     @test matrix_db[3, 1].query_relationship == "Degenerate Parent"
@@ -864,7 +864,7 @@ end
     @test pair.matched
     @test pair.query_relationship == "Variant Match"
 
-    split_motifs = split("RKLI,R[KR]L[IV],[KR]xLx[FYLIMVP]", ',')
+    split_motifs = split("RKLI,R[KR]L[IV],[KR].L.[FYLIMVP]", ',')
     @test split_motifs isa Vector{<:AbstractString}
     matrix = compare(split_motifs, options)
     @test size(matrix) == (3, 3)
@@ -973,7 +973,7 @@ end
 @testitem "RNA alphabet mode" begin
     rna_options = ComparisonOptions(;
         alphabet = RNAAlphabet(), min_shared_positions = 1, normalized_ic_cutoff = 0.0)
-    @test CompariMotif._normalize_motif("A[CU]x"; alphabet = RNAAlphabet()) == "A[CU]x"
+    @test CompariMotif._normalize_motif("A[CU]x"; alphabet = RNAAlphabet()) == "A[CU]."
     @test compare("AUG", "AUG", rna_options).matched
     @test_throws ArgumentError CompariMotif._normalize_motif("ATG"; alphabet = RNAAlphabet())
 end
