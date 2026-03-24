@@ -1,0 +1,20 @@
+# Motif set targeting CoreIC corner cases against the black-box oracle.
+# The exact A..K / A..K wildcard-denominator probe is asserted separately in
+# test/regression_coreic_oracle.jl with direct oracle-derived values.
+A..K
+[KR]L
+[RK]L
+A[KR]L
+[KRQ]L
+A[DE]
+A[CE]
+R[KR]L[IV]
+R[KQ]L[ILV]
+AK
+A.
+^AK$
+^A.$
+AQ
+A.K
+A.Q
+^AQ$

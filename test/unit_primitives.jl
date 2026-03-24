@@ -497,6 +497,60 @@ end
     mm1 = compare("AK", "AQ", mm1_options)
     @test mm1.matched
     @test mm1.matched_positions == 1
+
+    nterm_anchor_class = compare("^[KR]L", "[DE][KR]L", mm1_options)
+    @test nterm_anchor_class.matched
+    @test nterm_anchor_class.matched_pattern == raw"[^de][RK]L"
+
+    anchor_shift_preferred = compare(raw"^K", raw"^AK", mm1_options)
+    @test anchor_shift_preferred.matched
+    @test anchor_shift_preferred.query_relationship == "Exact Subsequence"
+    @test anchor_shift_preferred.search_relationship == "Exact Parent"
+    @test anchor_shift_preferred.matched_pattern == raw"^[ak]"
+    @test anchor_shift_preferred.core_ic ≈ 0.5 atol = 1e-3
+
+    cterm_anchor_class = compare(raw"A[DE]$", raw"[KR]A$", mm1_options)
+    @test cterm_anchor_class.matched
+    @test cterm_anchor_class.matched_pattern == "A[\$de]"
+
+    fullspan_anchor_preferred = compare(raw"A.$", raw"[KR]A$", mm1_options)
+    @test fullspan_anchor_preferred.matched
+    @test fullspan_anchor_preferred.query_relationship == "Degenerate Match"
+    @test fullspan_anchor_preferred.search_relationship == "Variant Match"
+    @test fullspan_anchor_preferred.matched_pattern == raw"[ark]a$"
+    @test fullspan_anchor_preferred.core_ic ≈ 1 / 3 atol = 1e-3
+
+    qfixed_mm1_options = ComparisonOptions(;
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0,
+        mismatches = 1,
+        matchfix = :query_fixed)
+    @test !compare("^[KR]L", "[DE][KR]L", qfixed_mm1_options).matched
+    @test compare("[DE][KR]L", "^[KR]L", qfixed_mm1_options).matched
+
+    sfixed_mm1_options = ComparisonOptions(;
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0,
+        mismatches = 1,
+        matchfix = :search_fixed)
+    @test compare("^[KR]L", "[DE][KR]L", sfixed_mm1_options).matched
+    @test !compare("[DE][KR]L", "^[KR]L", sfixed_mm1_options).matched
+
+    bothfixed_mm1_options = ComparisonOptions(;
+        min_shared_positions = 1,
+        normalized_ic_cutoff = 0.0,
+        mismatches = 1,
+        matchfix = :both_fixed)
+    @test !compare("^[KR]L", "[DE][KR]L", bothfixed_mm1_options).matched
+    @test !compare("[DE][KR]L", "^[KR]L", bothfixed_mm1_options).matched
+    @test !compare(raw"^A.$", raw"A$", qfixed_mm1_options).matched
+    @test !compare(raw"A$", raw"^A.$", sfixed_mm1_options).matched
+
+    anchor_fixed_tie = compare(raw"^AK$", raw"^K", mm1_options)
+    @test anchor_fixed_tie.matched
+    @test anchor_fixed_tie.query_relationship == "Exact Parent"
+    @test anchor_fixed_tie.search_relationship == "Exact Subsequence"
+    @test anchor_fixed_tie.matched_pattern == raw"[^a]K"
 end
 
 @testitem "default option semantics" begin
@@ -634,7 +688,6 @@ end
     variant = CompariMotif._MotifVariant(CompariMotif._Position[], "", 1.0)
 
     candidate = (; matched_positions,
-        exact_fixed_matches,
         match_ic = 1.0,
         score = 1.0) -> CompariMotif._Candidate(
         variant,
@@ -645,20 +698,27 @@ end
         CompariMotif._LEN_MATCH,
         "",
         matched_positions,
-        exact_fixed_matches,
         match_ic,
         1.0,
         1.0,
         score
     )
 
-    more_positions = candidate(; matched_positions = 3, exact_fixed_matches = 0)
-    fewer_positions = candidate(; matched_positions = 2, exact_fixed_matches = 1)
+    higher_match_ic = candidate(; matched_positions = 2, match_ic = 2.0, score = 1.0)
+    lower_match_ic = candidate(; matched_positions = 3, match_ic = 1.0, score = 3.0)
+    @test CompariMotif._is_better(higher_match_ic, lower_match_ic)
+
+    more_positions = candidate(; matched_positions = 3, match_ic = 1.0, score = 1.0)
+    fewer_positions = candidate(; matched_positions = 2, match_ic = 1.0, score = 2.0)
     @test CompariMotif._is_better(more_positions, fewer_positions)
 
-    more_exact_fixed = candidate(; matched_positions = 3, exact_fixed_matches = 2)
-    fewer_exact_fixed = candidate(; matched_positions = 3, exact_fixed_matches = 1)
-    @test CompariMotif._is_better(more_exact_fixed, fewer_exact_fixed)
+    higher_score = candidate(; matched_positions = 3, match_ic = 1.0, score = 2.0)
+    lower_score = candidate(; matched_positions = 3, match_ic = 1.0, score = 1.0)
+    @test CompariMotif._is_better(higher_score, lower_score)
+
+    tied_a = candidate(; matched_positions = 3, match_ic = 1.0, score = 1.0)
+    tied_b = candidate(; matched_positions = 3, match_ic = 1.0, score = 1.0)
+    @test !CompariMotif._is_better(tied_a, tied_b)
 end
 
 @testitem "matrix APIs" begin

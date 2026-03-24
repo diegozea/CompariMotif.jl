@@ -82,6 +82,7 @@
         @test result.matched_positions == parse(Int, row["MatchPos"])
         @test result.match_ic ≈ parse(Float64, row["MatchIC"]) atol = 1e-3
         @test result.normalized_ic ≈ parse(Float64, row["NormIC"]) atol = 1e-3
+        @test result.core_ic ≈ parse(Float64, row["CoreIC"]) atol = 1e-3
         @test result.score ≈ parse(Float64, row["Score"]) atol = 1e-3
         @test result.query_information ≈ parse(Float64, row["Info1"]) atol = 1e-2
         @test result.search_information ≈ parse(Float64, row["Info2"]) atol = 1e-2

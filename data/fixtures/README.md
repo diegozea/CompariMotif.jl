@@ -9,6 +9,7 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `default_probe_motifs.tsv`: discriminative motif set for default-option parity checks.
 - `boundary_wildcard_probe_motifs.tsv`: motif set targeting clipped boundary-wildcard containments and the corresponding oracle overlap/exact distinctions.
 - `matchfix_probe_motifs.tsv`: motif set targeting `matchfix` overlap clipping parity, while retaining oracle-allowed exact-subsequence cases.
+- `coreic_probe_motifs.tsv`: motif set targeting `CoreIC` corner cases and anchor/mismatch-sensitive cases; the exact `A..K` / `A..K` wildcard-denominator probe is covered separately by a direct regression test to avoid duplicated motifs that need names for identification.
 - `alternation_probe_motifs.tsv`: motif set with grouping/alternation syntax for oracle parity checks.
 - `exact_prefilter_probe_motifs.tsv`: motif set targeting exact-match, exact-subsequence, and exact-overlap pre-pass parity checks.
 - `score_tiebreak_probe_motifs.tsv`: motif set targeting branch/shift competitions that should be resolved by `Score` after `MatchIC` and `MatchPos`.
@@ -23,6 +24,8 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `oracle_query_fixed_probe_normalized.tsv`: normalized oracle output for `matchfix=1` (`:query_fixed`) parity tests.
 - `oracle_search_fixed_probe_normalized.tsv`: normalized oracle output for `matchfix=2` (`:search_fixed`) parity tests.
 - `oracle_both_fixed_probe_normalized.tsv`: normalized oracle output for `matchfix=3` (`:both_fixed`) parity tests.
+- `oracle_coreic_probe_normalized.tsv`: normalized oracle output for low-threshold `CoreIC` corner-case parity tests.
+- `oracle_coreic_mismatch_probe_normalized.tsv`: normalized oracle output for `mismatches=1` `CoreIC` parity tests.
 - `oracle_alternation_probe_normalized.tsv`: normalized oracle output for grouping/alternation tests.
 - `oracle_exact_prefilter_probe_normalized.tsv`: normalized oracle output for exact-match pre-pass parity tests.
 - `oracle_score_tiebreak_probe_normalized.tsv`: normalized oracle output for score-based tie-break tests.
@@ -58,6 +61,8 @@ oracle_boundary_wildcard_probe_normalized.tsv
 oracle_query_fixed_probe_normalized.tsv
 oracle_search_fixed_probe_normalized.tsv
 oracle_both_fixed_probe_normalized.tsv
+oracle_coreic_probe_normalized.tsv
+oracle_coreic_mismatch_probe_normalized.tsv
 oracle_alternation_probe_normalized.tsv
 oracle_exact_prefilter_probe_normalized.tsv
 oracle_score_tiebreak_probe_normalized.tsv
@@ -77,6 +82,8 @@ julia --project=. data/fixtures/generate_oracle_fixture.jl boundary_wildcard
 julia --project=. data/fixtures/generate_oracle_fixture.jl query_fixed
 julia --project=. data/fixtures/generate_oracle_fixture.jl search_fixed
 julia --project=. data/fixtures/generate_oracle_fixture.jl both_fixed
+julia --project=. data/fixtures/generate_oracle_fixture.jl coreic
+julia --project=. data/fixtures/generate_oracle_fixture.jl coreic_mismatch
 julia --project=. data/fixtures/generate_oracle_fixture.jl alternation
 julia --project=. data/fixtures/generate_oracle_fixture.jl exact_prefilter
 julia --project=. data/fixtures/generate_oracle_fixture.jl score_tiebreak
@@ -97,6 +104,21 @@ using `default_probe_motifs.tsv`.
 `oracle_boundary_wildcard_probe_normalized.tsv` is generated with
 `minshare=1`, `normcut=0`, and `matchfix=0` using
 `boundary_wildcard_probe_motifs.tsv`.
+
+### CoreIC Probe Fixtures
+
+`oracle_coreic_probe_normalized.tsv` is generated with `minshare=1`,
+`normcut=0`, `mismatches=0`, and `xgmml=F` using
+`coreic_probe_motifs.tsv` and keeps the full normalized oracle best-row parity
+corpus for that motif set, excluding the exact `A..K` / `A..K` self-match that
+the oracle only exposes when duplicate motifs are present in the same input.
+
+`oracle_coreic_mismatch_probe_normalized.tsv` reuses the same motif set with
+`mismatches=1` and likewise keeps the full normalized oracle best-row parity
+corpus for that motif set, including mismatch-tolerant anchor rows.
+
+The exact `A..K` / `A..K` `CoreIC` values are checked separately in
+`test/regression_coreic_oracle.jl` using direct oracle-derived expectations.
 
 ## Test Independence
 

@@ -76,6 +76,24 @@ const FIXTURE_SPECS = (
         dna = false
     ),
     (
+        name = "coreic",
+        motif_set = joinpath(FIXTURES_DIR, "coreic_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_coreic_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "mismatches=0", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
+        name = "coreic_mismatch",
+        motif_set = joinpath(FIXTURES_DIR, "coreic_probe_motifs.tsv"),
+        output = joinpath(FIXTURES_DIR, "oracle_coreic_mismatch_probe_normalized.tsv"),
+        columns = ORACLE_NORMALIZED_COLUMNS,
+        oracle_args = ["minshare=1", "normcut=0", "mismatches=1", "xgmml=F"],
+        aafreq = nothing,
+        dna = false
+    ),
+    (
         name = "alternation",
         motif_set = joinpath(FIXTURES_DIR, "alternation_probe_motifs.tsv"),
         output = joinpath(FIXTURES_DIR, "oracle_alternation_probe_normalized.tsv"),

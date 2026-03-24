@@ -110,7 +110,7 @@ aim to replicate the full SLiMSuite application surface. In particular:
 
 - no standalone CLI interface or SLiMSuite pipeline integration;
 - no raw `.tdt` compatibility/output mode (use `to_column_table` for tabular outputs);
-- no `Name*`/`Desc*` metadata fields in API results or fixtures (regex motifs only);
+- no `Name*`/`Desc*` metadata fields in API results or committed fixtures (regex motifs only);
 - no XGMML/network export outputs.
 
 #### Implementation notes compared to the paper
@@ -130,6 +130,10 @@ implementation choices differ intentionally:
   class is used instead. This implementation follows the oracle behavior for scoring
   while retaining the paper's `Complex` relationship terminology rather than the
   oracle's `Ugly` label.
+- The paper defines per-position information content, `match_ic`, normalized IC,
+  and score, but it does not define the `CoreIC` column emitted by the original
+  software. Accordingly, this package treats `core_ic` as an oracle-defined
+  field.
 - Ranged repeats and alternations are expanded into concrete motif variants. This
   expansion is limited by `max_variants` in `ComparisonOptions` (default `10_000`) to
   prevent pathological combinatorial growth.

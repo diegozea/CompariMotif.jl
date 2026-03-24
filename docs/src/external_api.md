@@ -60,7 +60,9 @@ side at each aligned position, and `score` combines `normalized_ic` with
 positions only, so positions where both motifs use a wildcard do not contribute
 to that total. `matched_pattern` is a compact rendering of the winning overlap:
 uppercase symbols usually mark clean exact agreement, whereas lowercase symbols
-mark positions broadened by ambiguity or wildcard handling.
+mark positions broadened by ambiguity or wildcard handling. It is worth noting 
+that the paper does not define a `CoreIC` score. Accordingly, in this 
+package, `core_ic` follows the behavior of the upstream CompariMotif oracle.
 
 The same fields become table columns when you call [`to_column_table`](@ref).
 In that tabular form, `query` and `search` keep the original motif strings,

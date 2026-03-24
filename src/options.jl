@@ -26,6 +26,7 @@ function _canonicalize_residue_frequencies(::Nothing, ::_AlphabetSpec)
     return nothing
 end
 
+# TODO: Add a doctrsing to this function.
 function _canonicalize_residue_frequencies(
         residue_frequencies::AbstractDict{Char, <:Real},
         spec::_AlphabetSpec
@@ -44,11 +45,15 @@ function _canonicalize_residue_frequencies(
             ArgumentError("`residue_frequencies` values must be finite.")
         )
         numeric > 0.0 || throw(
-            ArgumentError("`residue_frequencies` values must be strictly positive.")
-        )
+            ArgumentError(
+            "`residue_frequencies` values must be positive; use pseudocounts."
+        ))
         normalized[aa] = numeric
     end
 
+    # TODO: missing is a Julia object, so we should not be using it as a variable name.
+    # Please rename this variable to something else, and check for any other uses of 
+    # `missing` as a variable name in the codebase.
     missing = Char[]
     for aa in spec.chars
         haskey(normalized, aa) || push!(missing, aa)
@@ -58,6 +63,7 @@ function _canonicalize_residue_frequencies(
         join(missing, ", ")
     ))
 
+    # TODO: Comment to explain why do we need to scale.
     scale = maximum(values(normalized))
     scale > 0.0 || throw(
         ArgumentError("`residue_frequencies` must have positive total mass.")
@@ -70,6 +76,9 @@ function _canonicalize_residue_frequencies(
         ArgumentError("`residue_frequencies` must normalize to a finite positive total mass.")
     )
 
+    # TODO: Do we need to preserve the original order of residues in the alphabet? If so, 
+    # we should use an ordered dictionary here (OrderedDict from OrderedCollections.jl) 
+    # instead of a regular Dict, which does not guarantee order in Julia.
     ordered = Dict{Char, Float64}()
     for aa in spec.chars
         probability = (normalized[aa] / scale) / total
@@ -82,7 +91,8 @@ function _canonicalize_residue_frequencies(
 end
 
 function _uniform_residue_frequency_vector(spec::_AlphabetSpec)
-    return fill(inv(length(spec.chars)), length(spec.chars))
+    n = length(spec.chars)
+    return fill(inv(n), n)
 end
 
 function _residue_frequency_vector(options::ComparisonOptions, spec::_AlphabetSpec)

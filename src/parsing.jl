@@ -46,6 +46,8 @@ function _position_ic(
     # Information depends on the total background mass of the residue set.
     mass = 0.0
     for i in eachindex(residue_frequencies)
+        # TODO: This bitmask condition should be defined as a function, it is also used 
+        # in _mask_from_char and _mask_to_chars for example.
         if (pos.mask & (ResidueMask(1) << (i - 1))) != 0
             mass += residue_frequencies[i]
         end
@@ -135,6 +137,8 @@ function _class_mask(raw::AbstractString, spec::_AlphabetSpec)
     end
     if invert
         # Complement inside alphabet domain only.
+        # TODO: Use the functions defined in src/types.jl to do bitwise set operations 
+        # like this, to avoid repeating bit-twiddling logic and make it clearer.
         mask = spec.mask & ~mask
     end
     mask == 0 && throw(ArgumentError("Character class resolves to an empty set."))
@@ -201,6 +205,9 @@ end
 # - leading/trailing whitespace is trimmed, while the first internal whitespace
 #   ends parsing to mirror the upstream oracle;
 # - canonical text is rebuilt from masks and quantifiers to normalize input.
+
+# TODO: These functions are missing docstrings with examples, which should be added for 
+# clarity to ease understanding and maintainability.
 
 function _normalized_from_tokens(tokens::Vector{_Token})
     return join(getfield.(tokens, :canonical))

@@ -16,6 +16,10 @@ function _relationship_type_from_flags(has_variant::Bool, has_degenerate::Bool, 
     end
 end
 
+# TODO: Delete comments before or after doctsrings if they are redundant. The sourrounding 
+# code has examples of this problem, where there are comments that are basically restating 
+# what the docstring says, which is not ideal for maintainability.
+
 """
     _reverse_type(relationship_type::_RelationshipType)::_RelationshipType
 

@@ -1,3 +1,24 @@
+# TODO: Add a docstring.
+@inline function _anchor_symbol(pos::_Position)
+    pos.kind == _NTERMINUS && return "^"
+    pos.kind == _CTERMINUS && return "\$"
+    error("Expected anchor position")
+end
+
+# TODO: Add a docstring.
+function _anchor_mismatch_symbol(
+        anchor_pos::_Position,
+        residue_pos::_Position,
+        spec::_AlphabetSpec
+)
+    anchor = _anchor_symbol(anchor_pos)
+    if _is_wildcard(residue_pos, spec.mask)
+        return anchor
+    end
+    residues = String(_mask_to_chars(residue_pos.mask, spec; as_lowercase = true))
+    return "[$anchor$residues]"
+end
+
 """
     _match_symbol(qpos, spos, intersection, relation, mismatch, spec)::String
 
@@ -11,10 +32,15 @@ function _match_symbol(
         mismatch::Bool,
         spec::_AlphabetSpec
 )
-    if qpos.kind == _NTERMINUS
-        return "^"
-    elseif qpos.kind == _CTERMINUS
-        return "\$"
+    if qpos.kind !== _RESIDUE && spos.kind !== _RESIDUE
+        if qpos.kind == spos.kind
+            return _anchor_symbol(qpos)
+        end
+        return "x"
+    elseif qpos.kind !== _RESIDUE
+        return _anchor_mismatch_symbol(qpos, spos, spec)
+    elseif spos.kind !== _RESIDUE
+        return _anchor_mismatch_symbol(spos, qpos, spec)
     end
 
     qwild = _is_wildcard(qpos, spec.mask)
@@ -65,8 +91,10 @@ function _compare_positions(
         spec::_AlphabetSpec,
         residue_frequencies::AbstractVector{<:Real}
 )
-    # Anchors are valid only against the same anchor type.
-    if qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
+    # Oracle mismatch-tolerant overlaps can align anchors against non-anchor
+    # positions. Those anchor mismatches consume mismatch budget but still
+    # contribute the aligned anchor information to the CoreIC denominator.
+    if qpos.kind !== _RESIDUE && spos.kind !== _RESIDUE
         if qpos.kind == spos.kind
             return (hard_mismatch = false, mismatch = false,
                 relation = _REL_EXACT, intersection = ResidueMask(0), ic = 1.0,
@@ -76,6 +104,23 @@ function _compare_positions(
         return (hard_mismatch = true, mismatch = true,
             relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
             core_ic_denominator = 0.0,
+            contributes_position = false, exact_fixed = false)
+    elseif qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
+        constrained_anchor_mismatch = (qpos.kind !== _RESIDUE &&
+                                       _query_fixed_required(options.matchfix)) ||
+                                      (spos.kind !== _RESIDUE &&
+                                       _search_fixed_required(options.matchfix))
+        if constrained_anchor_mismatch
+            return (hard_mismatch = true, mismatch = true,
+                relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
+                core_ic_denominator = 0.0,
+                contributes_position = false, exact_fixed = false)
+        end
+        q_ic = _position_ic(qpos, spec, residue_frequencies)
+        s_ic = _position_ic(spos, spec, residue_frequencies)
+        return (hard_mismatch = false, mismatch = true,
+            relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
+            core_ic_denominator = max(q_ic, s_ic),
             contributes_position = false, exact_fixed = false)
     end
 
@@ -202,6 +247,42 @@ function _clips_fixed_suffix(
 end
 
 """
+    _clips_anchor_prefix(positions, overlap_start)::Bool
+
+Return `true` when the constrained side clips one or more anchors before the
+aligned span.
+"""
+function _clips_anchor_prefix(
+        positions::AbstractVector{_Position},
+        overlap_start::Int
+)
+    @inbounds for idx in firstindex(positions):(overlap_start - 1)
+        if positions[idx].kind !== _RESIDUE
+            return true
+        end
+    end
+    return false
+end
+
+"""
+    _clips_anchor_suffix(positions, overlap_end)::Bool
+
+Return `true` when the constrained side clips one or more anchors after the
+aligned span.
+"""
+function _clips_anchor_suffix(
+        positions::AbstractVector{_Position},
+        overlap_end::Int
+)
+    @inbounds for idx in (overlap_end + 1):lastindex(positions)
+        if positions[idx].kind !== _RESIDUE
+            return true
+        end
+    end
+    return false
+end
+
+"""
     _is_exact_contained_alignment(query_positions, search_positions, overlap_start, search_overlap_start, overlap_length)::Bool
 
 Return `true` when the aligned span covers the shorter motif completely and the
@@ -295,6 +376,10 @@ function _evaluate_alignment(
                                _clips_fixed_prefix(query_variant.positions, overlap_start)
     query_clips_fixed_suffix = _query_fixed_required(options.matchfix) &&
                                _clips_fixed_suffix(query_variant.positions, overlap_end)
+    query_clips_anchor_prefix = _query_fixed_required(options.matchfix) &&
+                                _clips_anchor_prefix(query_variant.positions, overlap_start)
+    query_clips_anchor_suffix = _query_fixed_required(options.matchfix) &&
+                                _clips_anchor_suffix(query_variant.positions, overlap_end)
     search_clips_fixed_prefix = _search_fixed_required(options.matchfix) &&
                                 _clips_fixed_prefix(
         search_variant.positions,
@@ -302,6 +387,16 @@ function _evaluate_alignment(
     )
     search_clips_fixed_suffix = _search_fixed_required(options.matchfix) &&
                                 _clips_fixed_suffix(
+        search_variant.positions,
+        search_overlap_end
+    )
+    search_clips_anchor_prefix = _search_fixed_required(options.matchfix) &&
+                                 _clips_anchor_prefix(
+        search_variant.positions,
+        search_overlap_start
+    )
+    search_clips_anchor_suffix = _search_fixed_required(options.matchfix) &&
+                                 _clips_anchor_suffix(
         search_variant.positions,
         search_overlap_end
     )
@@ -324,7 +419,6 @@ function _evaluate_alignment(
 
     matched_pattern = IOBuffer()
     matched_positions = 0
-    exact_fixed_matches = 0
     mismatches = 0
     match_ic = 0.0
     core_ic_denominator = 0.0
@@ -340,6 +434,18 @@ function _evaluate_alignment(
         if cmp.hard_mismatch
             return nothing
         end
+        if (qpos.kind !== _RESIDUE) ⊻ (spos.kind !== _RESIDUE)
+            clipped_constrained_anchor = query_clips_anchor_prefix ||
+                                         query_clips_anchor_suffix ||
+                                         search_clips_anchor_prefix ||
+                                         search_clips_anchor_suffix
+            if clipped_constrained_anchor
+                # Under one-sided `matchfix`, the oracle rejects overlaps that
+                # clip a constrained anchor and then spend mismatch budget on
+                # an anchor/residue alignment elsewhere in the span.
+                return nothing
+            end
+        end
         core_ic_denominator += cmp.core_ic_denominator
 
         if cmp.mismatch
@@ -348,7 +454,6 @@ function _evaluate_alignment(
         else
             match_ic += cmp.ic
             matched_positions += cmp.contributes_position ? 1 : 0
-            exact_fixed_matches += cmp.exact_fixed ? 1 : 0
             has_variant |= cmp.relation == _REL_VARIANT
             has_degenerate |= cmp.relation == _REL_DEGENERATE
             has_complex |= cmp.relation == _REL_COMPLEX
@@ -401,7 +506,6 @@ function _evaluate_alignment(
         rev_length,
         String(take!(matched_pattern)),
         matched_positions,
-        exact_fixed_matches,
         match_ic,
         normalized_ic,
         core_ic,
@@ -413,8 +517,8 @@ end
     _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})::Bool
 
 Apply deterministic candidate ordering: 1) higher `match_ic`, 2) more matched positions,
-3) higher `score`, 4) more exact fixed matches. Remaining ties fall back to
-candidate encounter order from the shift scan inferred by black-box oracle tie cases.
+3) higher `score`. Remaining ties fall back to candidate encounter order from
+the shift scan inferred by black-box oracle tie cases.
 """
 function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     best === nothing && return true
@@ -426,9 +530,6 @@ function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
     end
     if candidate.score != best.score
         return candidate.score > best.score
-    end
-    if candidate.exact_fixed_matches != best.exact_fixed_matches
-        return candidate.exact_fixed_matches > best.exact_fixed_matches
     end
     return false
 end

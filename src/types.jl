@@ -20,7 +20,8 @@ Fields:
   variants, making hits easier to compare across motif lengths and specificity.
 - `core_ic`: fraction of aligned-core information retained by the selected
   alignment (`match_ic / sum(max(position_ic(query_i), position_ic(search_i)))`
-  across non-dual-wildcard aligned positions).
+  across non-dual-wildcard aligned positions). This field is oracle-defined as
+  the paper does not define it.
 - `score`: derived summary score (`normalized_ic * matched_positions`).
 - `query_information`, `search_information`: total information content for the
   winning query and search motif variants.
@@ -275,7 +276,6 @@ struct _Candidate
     search_relationship_length::_RelationshipLength
     matched_pattern::String
     matched_positions::Int
-    exact_fixed_matches::Int
     match_ic::Float64
     normalized_ic::Float64
     core_ic::Float64
