@@ -26,7 +26,27 @@ function _canonicalize_residue_frequencies(::Nothing, ::_AlphabetSpec)
     return nothing
 end
 
-# TODO: Add a doctrsing to this function.
+"""
+    _canonicalize_residue_frequencies(residue_frequencies, spec::_AlphabetSpec)
+
+Validate and normalize user-supplied residue frequencies into canonical
+alphabet keys whose probabilities sum to `1.0`.
+
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> spec = CompariMotif._alphabet_spec(CompariMotif.DNAAlphabet());
+
+julia> freqs = CompariMotif._canonicalize_residue_frequencies(
+           Dict('a' => 7.0, 'c' => 2.0, 'g' => 1.0, 't' => 1.0),
+           spec
+       );
+
+julia> isapprox([freqs[aa] for aa in spec.chars], [7, 2, 1, 1] / 11)
+true
+```
+"""
 function _canonicalize_residue_frequencies(
         residue_frequencies::AbstractDict{Char, <:Real},
         spec::_AlphabetSpec
@@ -51,19 +71,17 @@ function _canonicalize_residue_frequencies(
         normalized[aa] = numeric
     end
 
-    # TODO: missing is a Julia object, so we should not be using it as a variable name.
-    # Please rename this variable to something else, and check for any other uses of 
-    # `missing` as a variable name in the codebase.
-    missing = Char[]
+    missing_residues = Char[]
     for aa in spec.chars
-        haskey(normalized, aa) || push!(missing, aa)
+        haskey(normalized, aa) || push!(missing_residues, aa)
     end
-    isempty(missing) || throw(ArgumentError(
+    isempty(missing_residues) || throw(ArgumentError(
         "`residue_frequencies` must define every residue in the selected alphabet; missing: " *
-        join(missing, ", ")
+        join(missing_residues, ", ")
     ))
 
-    # TODO: Comment to explain why do we need to scale.
+    # Scale before summation so extremely large or uneven user weights normalize
+    # without overflowing the Float64 accumulator.
     scale = maximum(values(normalized))
     scale > 0.0 || throw(
         ArgumentError("`residue_frequencies` must have positive total mass.")
@@ -76,18 +94,17 @@ function _canonicalize_residue_frequencies(
         ArgumentError("`residue_frequencies` must normalize to a finite positive total mass.")
     )
 
-    # TODO: Do we need to preserve the original order of residues in the alphabet? If so, 
-    # we should use an ordered dictionary here (OrderedDict from OrderedCollections.jl) 
-    # instead of a regular Dict, which does not guarantee order in Julia.
-    ordered = Dict{Char, Float64}()
+    # Deterministic downstream access uses `spec.chars`, not dictionary
+    # iteration order, so a plain `Dict` is sufficient here.
+    canonical_frequencies = Dict{Char, Float64}()
     for aa in spec.chars
         probability = (normalized[aa] / scale) / total
         probability > 0.0 || throw(ArgumentError(
             "`residue_frequencies` span too large a dynamic range to normalize safely in Float64."
         ))
-        ordered[aa] = probability
+        canonical_frequencies[aa] = probability
     end
-    return ordered
+    return canonical_frequencies
 end
 
 function _uniform_residue_frequency_vector(spec::_AlphabetSpec)

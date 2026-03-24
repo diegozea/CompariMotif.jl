@@ -46,9 +46,7 @@ function _position_ic(
     # Information depends on the total background mass of the residue set.
     mass = 0.0
     for i in eachindex(residue_frequencies)
-        # TODO: This bitmask condition should be defined as a function, it is also used 
-        # in _mask_from_char and _mask_to_chars for example.
-        if (pos.mask & (ResidueMask(1) << (i - 1))) != 0
+        if _mask_has_index(pos.mask, i)
             mass += residue_frequencies[i]
         end
     end
@@ -116,7 +114,7 @@ function _mask_from_char(char::Char, spec::_AlphabetSpec)
     idx = get(spec.index, aa, 0)
     idx == 0 && throw(ArgumentError("Unsupported residue '$char' for selected alphabet."))
     # The first residue in alphabet uses bit 0, second uses bit 1, etc.
-    return ResidueMask(1) << (idx - 1)
+    return _residue_mask_bit(idx)
 end
 
 """
@@ -137,9 +135,7 @@ function _class_mask(raw::AbstractString, spec::_AlphabetSpec)
     end
     if invert
         # Complement inside alphabet domain only.
-        # TODO: Use the functions defined in src/types.jl to do bitwise set operations 
-        # like this, to avoid repeating bit-twiddling logic and make it clearer.
-        mask = spec.mask & ~mask
+        mask = _mask_complement(mask, spec)
     end
     mask == 0 && throw(ArgumentError("Character class resolves to an empty set."))
     return mask
@@ -154,7 +150,7 @@ function _mask_to_chars(mask::ResidueMask, spec::_AlphabetSpec; as_lowercase::Bo
     chars = Char[]
     for (i, aa) in enumerate(spec.chars)
         # Emit residues in canonical alphabet order for deterministic normalization.
-        if (mask & (ResidueMask(1) << (i - 1))) != 0
+        if _mask_has_index(mask, i)
             push!(chars, as_lowercase ? Base.lowercase(aa) : aa)
         end
     end
@@ -206,19 +202,53 @@ end
 #   ends parsing to mirror the upstream oracle;
 # - canonical text is rebuilt from masks and quantifiers to normalize input.
 
-# TODO: These functions are missing docstrings with examples, which should be added for 
-# clarity to ease understanding and maintainability.
+"""
+    _normalized_from_tokens(tokens::Vector{_Token})::String
 
+Join canonical token renderings into one normalized motif string.
+
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> options = CompariMotif.ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0);
+
+julia> parsed = CompariMotif._parse_motif("r[kR].{0,1}l", options);
+
+julia> CompariMotif._normalized_from_tokens(parsed.tokens)
+"R[RK]x{0,1}L"
+```
+"""
 function _normalized_from_tokens(tokens::Vector{_Token})
     return join(getfield.(tokens, :canonical))
 end
 
+"""
+    _variant_limit_error(motif::AbstractString, nvariants::BigInt, max_variants::Int)::ArgumentError
+
+Construct the deterministic error used when grouped alternation or repeat
+expansion would exceed `max_variants`.
+"""
 function _variant_limit_error(motif::AbstractString, nvariants::BigInt, max_variants::Int)
     return ArgumentError(
         "Motif $motif expands to $nvariants variants, above max_variants=$max_variants."
     )
 end
 
+"""
+    _oracle_parse_window(motif::AbstractString)::String
+
+Trim leading/trailing whitespace, then stop at the first internal whitespace to
+mirror the upstream parser's effective input window.
+
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> CompariMotif._oracle_parse_window("  A(K|Q) LI  ")
+"A(K|Q)"
+```
+"""
 function _oracle_parse_window(motif::AbstractString)
     stripped = strip(motif)
     isempty(stripped) && return stripped
@@ -233,6 +263,24 @@ function _oracle_parse_window(motif::AbstractString)
     return stripped
 end
 
+"""
+    _combine_concat(lhs, rhs, motif, max_variants)::Vector{String}
+
+Form the Cartesian concatenation of two alternative sets while enforcing the
+variant expansion limit for the original `motif`.
+
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> CompariMotif._combine_concat(["A", "B"], ["C", "D"], "demo", 10)
+4-element Vector{String}:
+ "AC"
+ "AD"
+ "BC"
+ "BD"
+```
+"""
 function _combine_concat(
         lhs::Vector{String},
         rhs::Vector{String},
@@ -251,6 +299,12 @@ function _combine_concat(
     return out
 end
 
+"""
+    _parse_expr_alternatives(text::AbstractString, i::Int, max_variants::Int)
+
+Parse the expression starting at `i` into all top-level alternation branches,
+stopping at `')'` or the end of `text`.
+"""
 function _parse_expr_alternatives(text::AbstractString, i::Int, max_variants::Int)
     terms = String[]
     seq = [""]
@@ -273,6 +327,12 @@ function _parse_expr_alternatives(text::AbstractString, i::Int, max_variants::In
     end
 end
 
+"""
+    _extract_quantifier(text::AbstractString, i::Int)::Tuple{String, Int}
+
+Return the raw `{...}` quantifier starting at `i`, or `("", i)` when no repeat
+suffix is present.
+"""
 function _extract_quantifier(text::AbstractString, i::Int)
     if i > lastindex(text) || text[i] != '{'
         return "", i
@@ -281,6 +341,12 @@ function _extract_quantifier(text::AbstractString, i::Int)
     return String(text[i:prevind(text, next_i)]), next_i
 end
 
+"""
+    _parse_atom_alternatives(text::AbstractString, i::Int, max_variants::Int)
+
+Parse one atom at `i`, including bracket classes, grouped alternation, and any
+trailing repeat quantifier, then return its concrete textual alternatives.
+"""
 function _parse_atom_alternatives(text::AbstractString, i::Int, max_variants::Int)
     char = text[i]
 
@@ -307,6 +373,22 @@ function _parse_atom_alternatives(text::AbstractString, i::Int, max_variants::In
     return [string(char) * quant], next_i
 end
 
+"""
+    _expand_grouped_motif(text::AbstractString, max_variants::Int)::Vector{String}
+
+Expand grouped alternation syntax into canonical branch strings before token
+parsing.
+
+# Examples
+```jldoctest
+julia> using CompariMotif
+
+julia> CompariMotif._expand_grouped_motif("A(K|Q)L", 10)
+2-element Vector{String}:
+ "AKL"
+ "AQL"
+```
+"""
 function _expand_grouped_motif(text::AbstractString, max_variants::Int)
     alts, next_i = _parse_expr_alternatives(text, firstindex(text), max_variants)
     next_i <= lastindex(text) && text[next_i] != ')' &&

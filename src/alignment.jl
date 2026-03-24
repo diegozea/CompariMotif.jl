@@ -1,11 +1,20 @@
-# TODO: Add a docstring.
+"""
+    _anchor_symbol(pos::_Position)::String
+
+Render the canonical motif symbol for an anchor position (`^` or `\$`).
+"""
 @inline function _anchor_symbol(pos::_Position)
     pos.kind == _NTERMINUS && return "^"
     pos.kind == _CTERMINUS && return "\$"
     error("Expected anchor position")
 end
 
-# TODO: Add a docstring.
+"""
+    _anchor_mismatch_symbol(anchor_pos::_Position, residue_pos::_Position, spec::_AlphabetSpec)::String
+
+Render the overlap symbol used when an anchor aligns against a residue-bearing
+position.
+"""
 function _anchor_mismatch_symbol(
         anchor_pos::_Position,
         residue_pos::_Position,
@@ -17,6 +26,200 @@ function _anchor_mismatch_symbol(
     end
     residues = String(_mask_to_chars(residue_pos.mask, spec; as_lowercase = true))
     return "[$anchor$residues]"
+end
+
+"""
+    _position_comparison(; kwargs...)
+
+Build the named-tuple returned by position-comparison helpers.
+
+The fields encode whether the aligned position is a hard rejection, whether it
+consumes mismatch budget, the per-position relationship label, and the scoring
+terms accumulated by `_evaluate_alignment`.
+"""
+@inline function _position_comparison(;
+        hard_mismatch::Bool,
+        mismatch::Bool,
+        relation::_RelationshipType,
+        intersection::ResidueMask = ResidueMask(0),
+        ic::Float64 = 0.0,
+        core_ic_denominator::Float64 = 0.0,
+        contributes_position::Bool = false,
+        exact_fixed::Bool = false
+)
+    return (
+        hard_mismatch = hard_mismatch,
+        mismatch = mismatch,
+        relation = relation,
+        intersection = intersection,
+        ic = ic,
+        core_ic_denominator = core_ic_denominator,
+        contributes_position = contributes_position,
+        exact_fixed = exact_fixed
+    )
+end
+
+"""
+    _compare_anchor_positions(qpos::_Position, spos::_Position)
+
+Compare two anchor positions. Matching anchors produce an exact informative
+position; opposing anchors are treated as a hard mismatch.
+"""
+function _compare_anchor_positions(qpos::_Position, spos::_Position)
+    if qpos.kind == spos.kind
+        return _position_comparison(;
+            hard_mismatch = false,
+            mismatch = false,
+            relation = _REL_EXACT,
+            ic = 1.0,
+            core_ic_denominator = 1.0,
+            contributes_position = true
+        )
+    end
+    return _position_comparison(;
+        hard_mismatch = true,
+        mismatch = true,
+        relation = _REL_COMPLEX
+    )
+end
+
+"""
+    _compare_anchor_residue_positions(qpos, spos, options, spec, residue_frequencies)
+
+Compare an anchor against a residue-bearing position.
+
+Under mismatch-tolerant mode this usually consumes one mismatch while still
+contributing the larger anchor/residue information term to the CoreIC
+denominator. When the anchored side is constrained by `matchfix`, the alignment
+is rejected outright.
+"""
+function _compare_anchor_residue_positions(
+        qpos::_Position,
+        spos::_Position,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
+    constrained_anchor_mismatch = (qpos.kind !== _RESIDUE &&
+                                   _query_fixed_required(options.matchfix)) ||
+                                  (spos.kind !== _RESIDUE &&
+                                   _search_fixed_required(options.matchfix))
+    constrained_anchor_mismatch && return _position_comparison(;
+        hard_mismatch = true,
+        mismatch = true,
+        relation = _REL_COMPLEX
+    )
+
+    q_ic = _position_ic(qpos, spec, residue_frequencies)
+    s_ic = _position_ic(spos, spec, residue_frequencies)
+    return _position_comparison(;
+        hard_mismatch = false,
+        mismatch = true,
+        relation = _REL_COMPLEX,
+        core_ic_denominator = max(q_ic, s_ic)
+    )
+end
+
+"""
+    _position_relation(qclass, sclass, allow_ambiguous_overlap)
+
+Classify the residue-set relationship for one aligned residue position.
+
+Returns one of the internal relationship tags, or `nothing` when the classes
+only partially overlap and ambiguous overlaps are disallowed.
+"""
+function _position_relation(
+        qclass::ResidueClass,
+        sclass::ResidueClass,
+        allow_ambiguous_overlap::Bool
+)
+    if qclass.mask == sclass.mask
+        return _REL_EXACT
+    elseif is_subset(qclass, sclass)
+        return _REL_VARIANT
+    elseif is_subset(sclass, qclass)
+        return _REL_DEGENERATE
+    elseif allow_ambiguous_overlap
+        return _REL_COMPLEX
+    end
+    return nothing
+end
+
+"""
+    _position_match_ic(relation, qclass, sclass, q_ic, s_ic, spec, residue_frequencies)::Float64
+
+Return the information content credited to one matched residue position.
+
+Exact/variant/degenerate matches use the less informative side; complex partial
+overlaps use the union-class information content to match the oracle's scoring.
+"""
+function _position_match_ic(
+        relation::_RelationshipType,
+        qclass::ResidueClass,
+        sclass::ResidueClass,
+        q_ic::Float64,
+        s_ic::Float64,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
+    if relation == _REL_COMPLEX
+        union_pos = _Position(_RESIDUE, unionclass(qclass, sclass).mask)
+        return _position_ic(union_pos, spec, residue_frequencies)
+    end
+    return min(q_ic, s_ic)
+end
+
+"""
+    _compare_residue_positions(qpos, spos, options, spec, residue_frequencies)
+
+Compare two residue-bearing positions and return the diagnostic tuple consumed
+by `_evaluate_alignment`.
+"""
+function _compare_residue_positions(
+        qpos::_Position,
+        spos::_Position,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
+    q_ic = _position_ic(qpos, spec, residue_frequencies)
+    s_ic = _position_ic(spos, spec, residue_frequencies)
+
+    qclass = ResidueClass(qpos.mask)
+    sclass = ResidueClass(spos.mask)
+    intersection = qclass.mask & sclass.mask
+    core_ic_denominator = max(q_ic, s_ic)
+
+    overlaps(qclass, sclass) || return _position_comparison(;
+        hard_mismatch = false,
+        mismatch = true,
+        relation = _REL_COMPLEX,
+        intersection = intersection,
+        core_ic_denominator = core_ic_denominator
+    )
+
+    relation = _position_relation(qclass, sclass, options.allow_ambiguous_overlap)
+    relation === nothing && return _position_comparison(;
+        hard_mismatch = true,
+        mismatch = true,
+        relation = _REL_COMPLEX,
+        intersection = intersection,
+        core_ic_denominator = core_ic_denominator
+    )
+
+    ic = _position_match_ic(relation, qclass, sclass, q_ic, s_ic, spec, residue_frequencies)
+    contributes_position = !_is_wildcard(qpos, spec.mask) && !_is_wildcard(spos, spec.mask)
+    exact_fixed = relation == _REL_EXACT && _is_fixed(qpos) && _is_fixed(spos)
+    return _position_comparison(;
+        hard_mismatch = false,
+        mismatch = false,
+        relation = relation,
+        intersection = intersection,
+        ic = ic,
+        core_ic_denominator = core_ic_denominator,
+        contributes_position = contributes_position,
+        exact_fixed = exact_fixed
+    )
 end
 
 """
@@ -91,96 +294,13 @@ function _compare_positions(
         spec::_AlphabetSpec,
         residue_frequencies::AbstractVector{<:Real}
 )
-    # TODO: This function is too long and complex. Refactor into smaller pieces with 
-    # clear responsibilities.
-
-    # Oracle mismatch-tolerant overlaps can align anchors against non-anchor
-    # positions. Those anchor mismatches consume mismatch budget but still
-    # contribute the aligned anchor information to the CoreIC denominator.
     if qpos.kind !== _RESIDUE && spos.kind !== _RESIDUE
-        if qpos.kind == spos.kind
-            return (hard_mismatch = false, mismatch = false,
-                relation = _REL_EXACT, intersection = ResidueMask(0), ic = 1.0,
-                core_ic_denominator = 1.0,
-                contributes_position = true, exact_fixed = false)
-        end
-        return (hard_mismatch = true, mismatch = true,
-            relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
-            core_ic_denominator = 0.0,
-            contributes_position = false, exact_fixed = false)
+        return _compare_anchor_positions(qpos, spos)
     elseif qpos.kind !== _RESIDUE || spos.kind !== _RESIDUE
-        constrained_anchor_mismatch = (qpos.kind !== _RESIDUE &&
-                                       _query_fixed_required(options.matchfix)) ||
-                                      (spos.kind !== _RESIDUE &&
-                                       _search_fixed_required(options.matchfix))
-        if constrained_anchor_mismatch
-            return (hard_mismatch = true, mismatch = true,
-                relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
-                core_ic_denominator = 0.0,
-                contributes_position = false, exact_fixed = false)
-        end
-        q_ic = _position_ic(qpos, spec, residue_frequencies)
-        s_ic = _position_ic(spos, spec, residue_frequencies)
-        return (hard_mismatch = false, mismatch = true,
-            relation = _REL_COMPLEX, intersection = ResidueMask(0), ic = 0.0,
-            core_ic_denominator = max(q_ic, s_ic),
-            contributes_position = false, exact_fixed = false)
+        return _compare_anchor_residue_positions(
+            qpos, spos, options, spec, residue_frequencies)
     end
-
-    q_ic = _position_ic(qpos, spec, residue_frequencies)
-    s_ic = _position_ic(spos, spec, residue_frequencies)
-
-    qclass = ResidueClass(qpos.mask)
-    sclass = ResidueClass(spos.mask)
-    # Residue match operates on mask set intersection.
-    intersection = qclass.mask & sclass.mask
-    if !overlaps(qclass, sclass)
-        # No shared residue -> mismatch position (allowed only if mismatch budget allows).
-        return (hard_mismatch = false, mismatch = true,
-            relation = _REL_COMPLEX, intersection = intersection, ic = 0.0,
-            core_ic_denominator = max(q_ic, s_ic),
-            contributes_position = false, exact_fixed = false)
-    end
-
-    # Determine relationship by set equality/subset/superset/partial overlap.
-    relation = if qclass.mask == sclass.mask
-        _REL_EXACT
-    elseif is_subset(qclass, sclass)
-        _REL_VARIANT
-    elseif is_subset(sclass, qclass)
-        _REL_DEGENERATE
-    elseif options.allow_ambiguous_overlap
-        _REL_COMPLEX
-    else
-        return (hard_mismatch = true, mismatch = true, relation = _REL_COMPLEX,
-            intersection = intersection, ic = 0.0,
-            core_ic_denominator = max(q_ic, s_ic),
-            contributes_position = false, exact_fixed = false)
-    end
-
-    # Partially overlapping ambiguous classes use the union class IC, matching
-    # the oracle's per-position "Ugly" scoring. Subset/superset matches still
-    # use the less-specific side.
-    ic = if relation == _REL_COMPLEX
-        _position_ic(_Position(_RESIDUE, unionclass(qclass, sclass).mask), spec, residue_frequencies)
-    else
-        min(q_ic, s_ic)
-    end
-    # Matched position count excludes positions involving a wildcard on either side.
-    contributes = !_is_wildcard(qpos, spec.mask) && !_is_wildcard(spos, spec.mask)
-    core_ic_denominator = max(q_ic, s_ic)
-    # Used for matchfix tie-break logic.
-    exact_fixed = relation == _REL_EXACT && _is_fixed(qpos) && _is_fixed(spos)
-    return (
-        hard_mismatch = false,
-        mismatch = false,
-        relation = relation,
-        intersection = intersection,
-        ic = ic,
-        core_ic_denominator = core_ic_denominator,
-        contributes_position = contributes,
-        exact_fixed = exact_fixed
-    )
+    return _compare_residue_positions(qpos, spos, options, spec, residue_frequencies)
 end
 
 """
@@ -213,14 +333,32 @@ function _search_fixed_required(mode::Symbol)
     throw(_matchfix_argument_error())
 end
 
-# TODO: Add comments to explain what are clipped and fixed positions in this context.
-
-# TODO: Add an example or jldoctest to illustrate the concept inside the docstring.
+# In `matchfix` modes, the constrained side cannot hide informative positions
+# outside the overlap. "Fixed" means a single defined residue and "clipped"
+# means that the chosen alignment window leaves such a position on the prefix or
+# suffix outside the aligned span.
 """
     _clips_fixed_prefix(positions, overlap_start)::Bool
 
 Return `true` when the constrained side clips one or more fixed residues before
 the aligned span.
+
+```jldoctest
+julia> using CompariMotif
+
+julia> options = CompariMotif.ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0);
+
+julia> spec = CompariMotif._alphabet_spec(options.alphabet);
+
+julia> variant = only(CompariMotif._expand_variants(
+           CompariMotif._parse_motif(raw"^ACD\$", options),
+           options,
+           spec
+       ));
+
+julia> CompariMotif._clips_fixed_prefix(variant.positions, 3)
+true
+```
 """
 function _clips_fixed_prefix(
         positions::AbstractVector{_Position},
@@ -336,6 +474,248 @@ function _is_exact_contained_alignment(
 end
 
 """
+    _alignment_window(query_positions, search_positions, shift)
+
+Compute the overlap geometry for one query/search shift in query coordinates.
+
+Returns `nothing` when the shift produces no overlap; otherwise returns a named
+tuple containing both query- and search-space overlap bounds.
+"""
+function _alignment_window(
+        query_positions::AbstractVector{_Position},
+        search_positions::AbstractVector{_Position},
+        shift::Int
+)
+    qlen = length(query_positions)
+    slen = length(search_positions)
+    overlap_start = max(1, 1 + shift)
+    overlap_end = min(qlen, slen + shift)
+    overlap_length = overlap_end - overlap_start + 1
+    overlap_length < 1 && return nothing
+    return (
+        qlen = qlen,
+        slen = slen,
+        overlap_start = overlap_start,
+        overlap_end = overlap_end,
+        overlap_length = overlap_length,
+        search_overlap_start = overlap_start - shift,
+        search_overlap_end = overlap_end - shift
+    )
+end
+
+"""
+    _alignment_clip_state(positions, overlap_start, overlap_end, constrained)
+
+Summarize whether a constrained motif clips fixed residues or anchors on either
+side of the chosen overlap window.
+
+When `constrained == false`, all clip flags are `false`.
+"""
+function _alignment_clip_state(
+        positions::AbstractVector{_Position},
+        overlap_start::Int,
+        overlap_end::Int,
+        constrained::Bool
+)
+    constrained || return (
+        fixed_prefix = false,
+        fixed_suffix = false,
+        anchor_prefix = false,
+        anchor_suffix = false
+    )
+    return (
+        fixed_prefix = _clips_fixed_prefix(positions, overlap_start),
+        fixed_suffix = _clips_fixed_suffix(positions, overlap_end),
+        anchor_prefix = _clips_anchor_prefix(positions, overlap_start),
+        anchor_suffix = _clips_anchor_suffix(positions, overlap_end)
+    )
+end
+
+"""
+    _clips_fixed(state)::Bool
+
+Return `true` when either side of a clip-state summary hides fixed residues
+outside the aligned span.
+"""
+@inline _clips_fixed(state) = state.fixed_prefix || state.fixed_suffix
+
+"""
+    _clips_anchor(state)::Bool
+
+Return `true` when either side of a clip-state summary hides anchors outside
+the aligned span.
+"""
+@inline _clips_anchor(state) = state.anchor_prefix || state.anchor_suffix
+
+"""
+    _rejects_clipped_fixed_alignment(query_positions, search_positions, overlap, query_clip_state, search_clip_state, wildcard_mask)::Bool
+
+Return `true` when `matchfix` clipped-fixed rules reject the current overlap
+before per-position scoring begins.
+"""
+function _rejects_clipped_fixed_alignment(
+        query_positions::AbstractVector{_Position},
+        search_positions::AbstractVector{_Position},
+        overlap,
+        query_clip_state,
+        search_clip_state,
+        wildcard_mask::ResidueMask
+)
+    (_clips_fixed(query_clip_state) || _clips_fixed(search_clip_state)) || return false
+    return !_is_exact_contained_alignment(
+        query_positions,
+        search_positions,
+        overlap.overlap_start,
+        overlap.search_overlap_start,
+        overlap.overlap_length,
+        query_clip_state.fixed_prefix,
+        query_clip_state.fixed_suffix,
+        search_clip_state.fixed_prefix,
+        search_clip_state.fixed_suffix,
+        wildcard_mask
+    )
+end
+
+"""
+    _AlignmentAccumulator
+
+Mutable aggregation state for one candidate overlap while `_evaluate_alignment`
+scans positions from left to right.
+
+Fields:
+- `matched_pattern`: overlap text being emitted for the winning span.
+- `matched_positions`: informative non-wildcard matched-position count.
+- `mismatches`: mismatches consumed so far.
+- `match_ic`: accumulated matched information content.
+- `core_ic_denominator`: accumulated CoreIC denominator.
+- `has_variant`, `has_degenerate`, `has_complex`: per-position relationship
+  evidence used to derive the final relationship word.
+"""
+Base.@kwdef mutable struct _AlignmentAccumulator
+    matched_pattern::IOBuffer = IOBuffer()
+    matched_positions::Int = 0
+    mismatches::Int = 0
+    match_ic::Float64 = 0.0
+    core_ic_denominator::Float64 = 0.0
+    has_variant::Bool = false
+    has_degenerate::Bool = false
+    has_complex::Bool = false
+end
+
+"""
+    _rejects_clipped_anchor_mismatch(qpos, spos, query_clip_state, search_clip_state)::Bool
+
+Return `true` when an anchor-vs-residue alignment should be rejected because a
+constrained side already clips anchors elsewhere in the overlap.
+"""
+@inline function _rejects_clipped_anchor_mismatch(
+        qpos::_Position,
+        spos::_Position,
+        query_clip_state,
+        search_clip_state
+)
+    ((qpos.kind !== _RESIDUE) ⊻ (spos.kind !== _RESIDUE)) || return false
+    return _clips_anchor(query_clip_state) || _clips_anchor(search_clip_state)
+end
+
+"""
+    _violates_matchfix_exact_fixed(qpos, spos, cmp, query_constrained, search_constrained)::Bool
+
+Return `true` when a fixed residue on a constrained side fails to align to the
+same fixed residue exactly.
+"""
+@inline function _violates_matchfix_exact_fixed(
+        qpos::_Position,
+        spos::_Position,
+        cmp,
+        query_constrained::Bool,
+        search_constrained::Bool
+)
+    return (query_constrained && _is_fixed(qpos) && !cmp.exact_fixed) ||
+           (search_constrained && _is_fixed(spos) && !cmp.exact_fixed)
+end
+
+"""
+    _record_alignment_position!(acc, qpos, spos, cmp, options, spec)::Bool
+
+Update the running overlap accumulator with one aligned position.
+
+Returns `false` only when recording the position would exceed the allowed
+mismatch budget.
+"""
+function _record_alignment_position!(
+        acc::_AlignmentAccumulator,
+        qpos::_Position,
+        spos::_Position,
+        cmp,
+        options::ComparisonOptions,
+        spec::_AlphabetSpec
+)
+    acc.core_ic_denominator += cmp.core_ic_denominator
+    if cmp.mismatch
+        acc.mismatches += 1
+        acc.mismatches > options.mismatches && return false
+    else
+        acc.match_ic += cmp.ic
+        acc.matched_positions += cmp.contributes_position ? 1 : 0
+        acc.has_variant |= cmp.relation == _REL_VARIANT
+        acc.has_degenerate |= cmp.relation == _REL_DEGENERATE
+        acc.has_complex |= cmp.relation == _REL_COMPLEX
+    end
+
+    print(acc.matched_pattern,
+        _match_symbol(qpos, spos, cmp.intersection, cmp.relation, cmp.mismatch, spec))
+    return true
+end
+
+"""
+    _build_alignment_candidate(query_variant, search_variant, overlap_length, acc, options)
+
+Finalize one accumulated overlap into a scored `_Candidate`.
+
+Returns `nothing` when the overlap fails the global matched-position or
+normalized-IC thresholds.
+"""
+function _build_alignment_candidate(
+        query_variant::_MotifVariant,
+        search_variant::_MotifVariant,
+        overlap_length::Int,
+        acc::_AlignmentAccumulator,
+        options::ComparisonOptions
+)
+    acc.matched_positions < options.min_shared_positions && return nothing
+
+    denom = min(query_variant.information, search_variant.information)
+    normalized_ic = denom > 0 ? (acc.match_ic / denom) : 0.0
+    normalized_ic < options.normalized_ic_cutoff && return nothing
+
+    core_ic = acc.core_ic_denominator > 0 ? (acc.match_ic / acc.core_ic_denominator) : 0.0
+    score = normalized_ic * acc.matched_positions
+    qlen = length(query_variant.positions)
+    slen = length(search_variant.positions)
+    rel_type = _relationship_type_from_flags(
+        acc.has_variant, acc.has_degenerate, acc.has_complex)
+    rel_length = _relationship_length(qlen, slen, overlap_length)
+    rev_type = _reverse_type(rel_type)
+    rev_length = _reverse_length(rel_length)
+
+    return _Candidate(
+        query_variant,
+        search_variant,
+        rel_type,
+        rel_length,
+        rev_type,
+        rev_length,
+        String(take!(acc.matched_pattern)),
+        acc.matched_positions,
+        acc.match_ic,
+        normalized_ic,
+        core_ic,
+        score
+    )
+end
+
+"""
     _evaluate_alignment(query_variant, search_variant, shift, options, spec)
 
 Evaluate one concrete shift between two expanded motif variants.
@@ -366,159 +746,53 @@ function _evaluate_alignment(
         spec::_AlphabetSpec,
         residue_frequencies::AbstractVector{<:Real}
 )
-    # TODO: This function is too long and complex. Refactor into smaller pieces with
-    # clear responsibilities.
-    
-    qlen = length(query_variant.positions)
-    slen = length(search_variant.positions)
-    # Shift convention:
-    # - positive shift moves search right relative to query,
-    # - overlap indices computed in query coordinate space.
-    overlap_start = max(1, 1 + shift)
-    overlap_end = min(qlen, slen + shift)
-    overlap_length = overlap_end - overlap_start + 1
-    overlap_length < 1 && return nothing
-    search_overlap_start = overlap_start - shift
-    search_overlap_end = overlap_end - shift
+    overlap = _alignment_window(query_variant.positions, search_variant.positions, shift)
+    overlap === nothing && return nothing
 
-    query_clips_fixed_prefix = _query_fixed_required(options.matchfix) &&
-                               _clips_fixed_prefix(query_variant.positions, overlap_start)
-    query_clips_fixed_suffix = _query_fixed_required(options.matchfix) &&
-                               _clips_fixed_suffix(query_variant.positions, overlap_end)
-    query_clips_anchor_prefix = _query_fixed_required(options.matchfix) &&
-                                _clips_anchor_prefix(query_variant.positions, overlap_start)
-    query_clips_anchor_suffix = _query_fixed_required(options.matchfix) &&
-                                _clips_anchor_suffix(query_variant.positions, overlap_end)
-    search_clips_fixed_prefix = _search_fixed_required(options.matchfix) &&
-                                _clips_fixed_prefix(
-        search_variant.positions,
-        search_overlap_start
+    query_constrained = _query_fixed_required(options.matchfix)
+    search_constrained = _search_fixed_required(options.matchfix)
+    query_clip_state = _alignment_clip_state(
+        query_variant.positions,
+        overlap.overlap_start,
+        overlap.overlap_end,
+        query_constrained
     )
-    search_clips_fixed_suffix = _search_fixed_required(options.matchfix) &&
-                                _clips_fixed_suffix(
+    search_clip_state = _alignment_clip_state(
         search_variant.positions,
-        search_overlap_end
+        overlap.search_overlap_start,
+        overlap.search_overlap_end,
+        search_constrained
     )
-    search_clips_anchor_prefix = _search_fixed_required(options.matchfix) &&
-                                 _clips_anchor_prefix(
-        search_variant.positions,
-        search_overlap_start
-    )
-    search_clips_anchor_suffix = _search_fixed_required(options.matchfix) &&
-                                 _clips_anchor_suffix(
-        search_variant.positions,
-        search_overlap_end
-    )
-    if (query_clips_fixed_prefix || query_clips_fixed_suffix ||
-        search_clips_fixed_prefix || search_clips_fixed_suffix) &&
-       !_is_exact_contained_alignment(
+    _rejects_clipped_fixed_alignment(
         query_variant.positions,
         search_variant.positions,
-        overlap_start,
-        search_overlap_start,
-        overlap_length,
-        query_clips_fixed_prefix,
-        query_clips_fixed_suffix,
-        search_clips_fixed_prefix,
-        search_clips_fixed_suffix,
+        overlap,
+        query_clip_state,
+        search_clip_state,
         spec.mask
-    )
-        return nothing
-    end
+    ) && return nothing
 
-    matched_pattern = IOBuffer()
-    matched_positions = 0
-    mismatches = 0
-    match_ic = 0.0
-    core_ic_denominator = 0.0
-    has_variant = false
-    has_degenerate = false
-    has_complex = false
-
-    for qidx in overlap_start:overlap_end
+    acc = _AlignmentAccumulator()
+    for qidx in overlap.overlap_start:overlap.overlap_end
         sidx = qidx - shift
         qpos = query_variant.positions[qidx]
         spos = search_variant.positions[sidx]
         cmp = _compare_positions(qpos, spos, options, spec, residue_frequencies)
-        if cmp.hard_mismatch
+        cmp.hard_mismatch && return nothing
+        _rejects_clipped_anchor_mismatch(qpos, spos, query_clip_state, search_clip_state) &&
             return nothing
-        end
-        if (qpos.kind !== _RESIDUE) ⊻ (spos.kind !== _RESIDUE)
-            clipped_constrained_anchor = query_clips_anchor_prefix ||
-                                         query_clips_anchor_suffix ||
-                                         search_clips_anchor_prefix ||
-                                         search_clips_anchor_suffix
-            if clipped_constrained_anchor
-                # Under one-sided `matchfix`, the oracle rejects overlaps that
-                # clip a constrained anchor and then spend mismatch budget on
-                # an anchor/residue alignment elsewhere in the span.
-                return nothing
-            end
-        end
-        core_ic_denominator += cmp.core_ic_denominator
-
-        if cmp.mismatch
-            mismatches += 1
-            mismatches > options.mismatches && return nothing
-        else
-            match_ic += cmp.ic
-            matched_positions += cmp.contributes_position ? 1 : 0
-            has_variant |= cmp.relation == _REL_VARIANT
-            has_degenerate |= cmp.relation == _REL_DEGENERATE
-            has_complex |= cmp.relation == _REL_COMPLEX
-        end
-
-        if _query_fixed_required(options.matchfix)
-            if _is_fixed(qpos) && !cmp.exact_fixed
-                # Required fixed query position must align to same fixed residue.
-                return nothing
-            end
-        end
-        if _search_fixed_required(options.matchfix)
-            if _is_fixed(spos) && !cmp.exact_fixed
-                # Required fixed search position must align to same fixed residue.
-                return nothing
-            end
-        end
-
-        print(matched_pattern,
-            _match_symbol(
-                qpos, spos, cmp.intersection, cmp.relation, cmp.mismatch, spec))
+        _violates_matchfix_exact_fixed(
+            qpos, spos, cmp, query_constrained, search_constrained) &&
+            return nothing
+        _record_alignment_position!(acc, qpos, spos, cmp, options, spec) || return nothing
     end
 
-    if matched_positions < options.min_shared_positions
-        return nothing
-    end
-
-    # Normalize by the lower-information motif to keep score symmetric.
-    denom = min(query_variant.information, search_variant.information)
-    normalized_ic = denom > 0 ? (match_ic / denom) : 0.0
-    if normalized_ic < options.normalized_ic_cutoff
-        return nothing
-    end
-
-    # Oracle `CoreIC` is normalized by the more informative side of each aligned
-    # position, not by a raw core-position count.
-    core_ic = core_ic_denominator > 0 ? (match_ic / core_ic_denominator) : 0.0
-    score = normalized_ic * matched_positions
-    rel_type = _relationship_type_from_flags(has_variant, has_degenerate, has_complex)
-    rel_length = _relationship_length(qlen, slen, overlap_length)
-    rev_type = _reverse_type(rel_type)
-    rev_length = _reverse_length(rel_length)
-
-    return _Candidate(
+    return _build_alignment_candidate(
         query_variant,
         search_variant,
-        rel_type,
-        rel_length,
-        rev_type,
-        rev_length,
-        String(take!(matched_pattern)),
-        matched_positions,
-        match_ic,
-        normalized_ic,
-        core_ic,
-        score
+        overlap.overlap_length,
+        acc,
+        options
     )
 end
 
@@ -594,6 +868,12 @@ function _matches_matchfix_exact_subsequence(
     return true
 end
 
+"""
+    _first_informative_index(positions, wildcard_mask)
+
+Return the first index whose position is not a wildcard, or `nothing` when the
+entire sequence is wildcard-only.
+"""
 @inline function _first_informative_index(
         positions::AbstractVector{_Position},
         wildcard_mask::ResidueMask
@@ -604,6 +884,12 @@ end
     return nothing
 end
 
+"""
+    _last_informative_index(positions, wildcard_mask)
+
+Return the last index whose position is not a wildcard, or `nothing` when the
+entire sequence is wildcard-only.
+"""
 @inline function _last_informative_index(
         positions::AbstractVector{_Position},
         wildcard_mask::ResidueMask
@@ -614,6 +900,13 @@ end
     return nothing
 end
 
+"""
+    _clipped_region_can_rebind(positions, start, stop, target) :: Bool
+
+Return `true` when a clipped region contains an anchor of the same kind or a
+residue class overlapping `target`, meaning the clipped segment could compete
+for that edge position under the oracle's precise-match rules.
+"""
 function _clipped_region_can_rebind(
         positions::AbstractVector{_Position},
         start::Int,

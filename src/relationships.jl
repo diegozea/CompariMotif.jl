@@ -3,7 +3,6 @@
 
 Reduce position-level relationship evidence into a final relationship type.
 """
-# Reduce per-position relationship evidence into the final relationship type.
 function _relationship_type_from_flags(has_variant::Bool, has_degenerate::Bool, has_complex::Bool)
     if has_complex || (has_variant && has_degenerate)
         return _REL_COMPLEX
@@ -16,16 +15,11 @@ function _relationship_type_from_flags(has_variant::Bool, has_degenerate::Bool, 
     end
 end
 
-# TODO: Delete comments before or after doctsrings if they are redundant. The sourrounding 
-# code has examples of this problem, where there are comments that are basically restating 
-# what the docstring says, which is not ideal for maintainability.
-
 """
     _reverse_type(relationship_type::_RelationshipType)::_RelationshipType
 
 Reverse relation type for query-vs-search direction inversion.
 """
-# Reverse relation type for query-vs-search direction inversion.
 # Variant and Degenerate swap perspective; others are symmetric.
 function _reverse_type(relationship_type::_RelationshipType)
     if relationship_type == _REL_VARIANT
@@ -41,7 +35,6 @@ end
 
 Classify relationship length based on overlap coverage.
 """
-# Length class is based on how much of each motif is covered by overlap.
 function _relationship_length(qlen::Int, slen::Int, overlap::Int)
     if overlap == qlen && qlen == slen
         return _LEN_MATCH
@@ -59,7 +52,6 @@ end
 
 Reverse length class for the opposite comparison direction.
 """
-# Reverse length relation for the opposite perspective.
 function _reverse_length(length_type::_RelationshipLength)
     if length_type == _LEN_PARENT
         return _LEN_SUBSEQUENCE
@@ -74,7 +66,6 @@ end
 
 Render full relationship words for user-facing result fields.
 """
-# Render full relationship words for user-facing result fields.
 function _relationship_word(relationship_type::_RelationshipType, length_type::_RelationshipLength)
     return _RELATIONSHIP_TYPE_WORDS[Int(relationship_type) + 1] * " " *
            _RELATIONSHIP_LENGTH_WORDS[Int(length_type) + 1]

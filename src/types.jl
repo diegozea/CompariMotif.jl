@@ -72,6 +72,30 @@ struct ResidueClass
     mask::ResidueMask
 end
 
+"""
+    _residue_mask_bit(index::Int)::ResidueMask
+
+Return the bit used to represent the residue at canonical alphabet position
+`index`.
+"""
+@inline _residue_mask_bit(index::Int) = ResidueMask(1) << (index - 1)
+
+"""
+    _mask_has_index(mask::ResidueMask, index::Int)::Bool
+
+Return `true` when `mask` contains the residue stored at canonical alphabet
+position `index`.
+"""
+@inline _mask_has_index(mask::ResidueMask, index::Int) = !iszero(mask &
+                                                                 _residue_mask_bit(index))
+
+"""
+    _mask_complement(mask::ResidueMask, spec::_AlphabetSpec)::ResidueMask
+
+Return the complement of `mask` restricted to the active alphabet domain.
+"""
+@inline _mask_complement(mask::ResidueMask, spec::_AlphabetSpec) = spec.mask & ~mask
+
 # Core atom used everywhere in comparison code.
 # `mask` is meaningful only when `kind == _RESIDUE`.
 struct _Position
