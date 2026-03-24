@@ -55,6 +55,17 @@
             @test candidate.matched_positions == 2
             @test round(candidate.normalized_ic, digits = 3) == 0.835
         end
+
+        @testset "mixed anchor symbols render as wildcard dot" begin
+            @test CompariMotif._match_symbol(
+                CompariMotif._Position(CompariMotif._NTERMINUS, 0),
+                CompariMotif._Position(CompariMotif._CTERMINUS, 0),
+                zero(CompariMotif.ResidueMask),
+                CompariMotif._REL_EXACT,
+                false,
+                spec
+            ) == "."
+        end
     end
 
     @testset "public result materialization" begin

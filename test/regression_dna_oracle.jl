@@ -51,7 +51,6 @@
     end
 
     oracle_to_package(rel::String) = replace(rel, "Ugly" => "Complex")
-    oracle_to_package_match(text::String) = text
 
     function assert_fixture(motifs_path::String, oracle_path::String, options::ComparisonOptions)
         patterns = load_fixture_motifs(motifs_path)
@@ -78,7 +77,7 @@
             @test result.matched
             @test result.query_relationship == oracle_to_package(row["Sim1"])
             @test result.search_relationship == oracle_to_package(row["Sim2"])
-            @test result.matched_pattern == oracle_to_package_match(row["Match"])
+            @test result.matched_pattern == row["Match"]
             @test result.matched_positions == parse(Int, row["MatchPos"])
             @test result.match_ic ≈ parse(Float64, row["MatchIC"]) atol = 1e-3
             @test result.normalized_ic ≈ parse(Float64, row["NormIC"]) atol = 1e-3
