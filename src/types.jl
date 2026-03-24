@@ -13,8 +13,8 @@ Fields:
   `Subsequence`, `Overlap`).
 - `matched_pattern`: compact rendering of the selected overlap; lowercase
   symbols mark positions broadened by ambiguity or wildcard handling.
-- `matched_positions`: number of informative aligned positions; dual wildcards
-  are excluded.
+- `matched_positions`: number of informative aligned positions; any aligned
+  position involving a wildcard on either side is excluded.
 - `match_ic`: raw information content captured by the selected alignment.
 - `normalized_ic`: `match_ic` scaled by the less informative of the two motif
   variants, making hits easier to compare across motif lengths and specificity.

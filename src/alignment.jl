@@ -163,7 +163,7 @@ function _compare_positions(
     else
         min(q_ic, s_ic)
     end
-    # Matched position count excludes wildcard-vs-wildcard.
+    # Matched position count excludes positions involving a wildcard on either side.
     contributes = !_is_wildcard(qpos, spec.mask) && !_is_wildcard(spos, spec.mask)
     core_ic_denominator = max(q_ic, s_ic)
     # Used for matchfix tie-break logic.

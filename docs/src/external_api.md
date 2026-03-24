@@ -57,8 +57,8 @@ on a comparable scale across motifs of different specificity, `core_ic` is the
 fraction of aligned-core information retained relative to the more informative
 side at each aligned position, and `score` combines `normalized_ic` with
 `matched_positions` for ranking. `matched_positions` counts informative aligned
-positions only, so positions where both motifs use a wildcard do not contribute
-to that total. `matched_pattern` is a compact rendering of the winning overlap:
+positions only, so any aligned position involving a wildcard on either side
+does not contribute to that total. `matched_pattern` is a compact rendering of the winning overlap:
 uppercase symbols usually mark clean exact agreement, whereas lowercase symbols
 mark positions broadened by ambiguity or wildcard handling. It is worth noting 
 that the paper does not define a `CoreIC` score. Accordingly, in this 

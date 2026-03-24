@@ -95,6 +95,125 @@ end
     end
 end
 
+@testitem "position comparison primitives" begin
+    using CompariMotif: CompariMotif, ComparisonOptions
+
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0, mismatches = 1)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+    residue_frequencies = CompariMotif._residue_frequency_vector(options, spec)
+
+    function first_position(pattern::AbstractString)
+        variant = only(CompariMotif._expand_variants(
+            CompariMotif._parse_motif(pattern, options), options, spec))
+        return only(variant.positions)
+    end
+
+    wildcard_exact = CompariMotif._compare_positions(
+        first_position("x"),
+        first_position("x"),
+        options,
+        spec,
+        residue_frequencies
+    )
+    @test !wildcard_exact.hard_mismatch
+    @test !wildcard_exact.mismatch
+    @test wildcard_exact.relation == CompariMotif._REL_EXACT
+    @test wildcard_exact.ic == 0.0
+    @test wildcard_exact.core_ic_denominator == 0.0
+    @test !wildcard_exact.contributes_position
+
+    wildcard_degenerate = CompariMotif._compare_positions(
+        first_position("x"),
+        first_position("A"),
+        options,
+        spec,
+        residue_frequencies
+    )
+    @test !wildcard_degenerate.hard_mismatch
+    @test !wildcard_degenerate.mismatch
+    @test wildcard_degenerate.relation == CompariMotif._REL_DEGENERATE
+    @test wildcard_degenerate.ic == 0.0
+    @test wildcard_degenerate.core_ic_denominator ≈ 1.0 atol = 1e-12
+    @test !wildcard_degenerate.contributes_position
+
+    wildcard_variant = CompariMotif._compare_positions(
+        first_position("A"),
+        first_position("x"),
+        options,
+        spec,
+        residue_frequencies
+    )
+    @test !wildcard_variant.hard_mismatch
+    @test !wildcard_variant.mismatch
+    @test wildcard_variant.relation == CompariMotif._REL_VARIANT
+    @test wildcard_variant.ic == 0.0
+    @test wildcard_variant.core_ic_denominator ≈ 1.0 atol = 1e-12
+    @test !wildcard_variant.contributes_position
+
+    nterm_exact = CompariMotif._compare_positions(
+        first_position(raw"^"),
+        first_position(raw"^"),
+        options,
+        spec,
+        residue_frequencies
+    )
+    @test !nterm_exact.hard_mismatch
+    @test !nterm_exact.mismatch
+    @test nterm_exact.relation == CompariMotif._REL_EXACT
+    @test nterm_exact.ic == 1.0
+    @test nterm_exact.core_ic_denominator == 1.0
+    @test nterm_exact.contributes_position
+
+    cterm_exact = CompariMotif._compare_positions(
+        first_position(raw"$"),
+        first_position(raw"$"),
+        options,
+        spec,
+        residue_frequencies
+    )
+    @test !cterm_exact.hard_mismatch
+    @test !cterm_exact.mismatch
+    @test cterm_exact.relation == CompariMotif._REL_EXACT
+    @test cterm_exact.ic == 1.0
+    @test cterm_exact.core_ic_denominator == 1.0
+    @test cterm_exact.contributes_position
+
+    opposite_anchor = CompariMotif._compare_positions(
+        first_position(raw"^"),
+        first_position(raw"$"),
+        options,
+        spec,
+        residue_frequencies
+    )
+    @test opposite_anchor.hard_mismatch
+    @test opposite_anchor.mismatch
+    @test opposite_anchor.relation == CompariMotif._REL_COMPLEX
+    @test opposite_anchor.ic == 0.0
+    @test opposite_anchor.core_ic_denominator == 0.0
+    @test !opposite_anchor.contributes_position
+end
+
+@testitem "wildcard positions do not count toward matched positions" begin
+    using CompariMotif: ComparisonOptions, compare
+
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+
+    leading_wildcard = compare("AK", "A.", options)
+    @test leading_wildcard.matched
+    @test leading_wildcard.matched_positions == 1
+    @test leading_wildcard.match_ic ≈ 1.0 atol = 1e-12
+    @test leading_wildcard.core_ic ≈ 0.5 atol = 1e-12
+
+    trailing_wildcard = compare("A.", "AK", options)
+    @test trailing_wildcard.matched
+    @test trailing_wildcard.matched_positions == 1
+    @test trailing_wildcard.match_ic ≈ 1.0 atol = 1e-12
+    @test trailing_wildcard.core_ic ≈ 0.5 atol = 1e-12
+
+    wildcard_only = compare("x", "A", options)
+    @test !wildcard_only.matched
+end
+
 @testitem "non-uniform residue frequencies" begin
     cases = (
         (
