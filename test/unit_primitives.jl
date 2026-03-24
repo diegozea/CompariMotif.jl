@@ -193,6 +193,48 @@ end
     @test !opposite_anchor.contributes_position
 end
 
+@testitem "alignment helper edge coverage" begin
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+
+    function only_variant(pattern::AbstractString)
+        parsed = CompariMotif._parse_motif(pattern, options)
+        return only(CompariMotif._expand_variants(parsed, options, spec))
+    end
+
+    anchor_error = try
+        CompariMotif._anchor_symbol(
+            CompariMotif._Position(CompariMotif._RESIDUE, zero(CompariMotif.ResidueMask))
+        )
+        nothing
+    catch err
+        err
+    end
+    @test anchor_error isa ErrorException
+    if anchor_error isa ErrorException
+        @test occursin("Expected anchor position", sprint(showerror, anchor_error))
+    end
+
+    exact_query = only_variant("AK")
+    exact_search = only_variant("AK")
+    @test CompariMotif._is_exact_contained_alignment(
+        exact_query.positions,
+        exact_search.positions,
+        1,
+        1,
+        length(exact_query.positions),
+        false,
+        false,
+        false,
+        false,
+        spec.mask
+    )
+
+    wildcard_only = only_variant("...")
+    @test CompariMotif._first_informative_index(wildcard_only.positions, spec.mask) ===
+          nothing
+end
+
 @testitem "wildcard positions do not count toward matched positions" begin
     using CompariMotif: ComparisonOptions, compare
 
