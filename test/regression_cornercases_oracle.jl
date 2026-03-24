@@ -110,7 +110,7 @@
         @test result.matched
         @test result.query_relationship == row["Sim1"]
         @test result.search_relationship == row["Sim2"]
-        @test result.matched_pattern == replace(row["Match"], '.' => 'x')
+        @test result.matched_pattern == row["Match"]
         @test result.matched_positions == parse(Int, row["MatchPos"])
         @test result.match_ic ≈ parse(Float64, row["MatchIC"]) atol = 1e-3
         @test result.normalized_ic ≈ parse(Float64, row["NormIC"]) atol = 1e-3

@@ -102,7 +102,7 @@ converted into a `DataFrame` from the `DataFrames` package or saved into a comma
 values (CSV) file with the `CSV` package.
 
 ```@repl external_api_examples
-motifs = ["RKLI", "R[KR]L[IV]", "RxLE"]
+motifs = ["RKLI", "R[KR]L[IV]", "R.LE"]
 results = compare(motifs, options);
 size(results)
 table = to_column_table(results)
@@ -114,7 +114,7 @@ already know the motif you want to look up and want to inspect or export all
 hits against a target set.
 
 ```@repl external_api_examples
-query_hits = compare("RKLI", ["RKLI", "RxLE"], options);
+query_hits = compare("RKLI", ["RKLI", "R.LE"], options);
 query_hits[1, 1].matched
 query_hits[1, 2].matched
 ```

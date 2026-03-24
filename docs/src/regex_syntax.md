@@ -11,7 +11,8 @@ Motif parsing supports a controlled regex-like subset.
   - DNA (`alphabet=DNAAlphabet()`): `ACGT`
   - RNA (`alphabet=RNAAlphabet()`): `ACGU`
 - Wildcards:
-  - `x`, `X`, and `.` are equivalent and mean "any residue in the selected alphabet".
+  - `.` is the canonical wildcard in normalized and output motifs.
+  - `x` and `X` are accepted input aliases and mean the same thing.
 - Character classes:
   - `[KR]` includes listed residues.
   - `[^P]` is negation within the selected alphabet only.

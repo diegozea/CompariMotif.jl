@@ -34,9 +34,10 @@ julia> result.query_relationship
 ## How do I handle IUPAC ambiguity codes such as `N`, `R`, `B` or `Z`?
 
 CompariMotif accepts motifs written with the selected core alphabet, bracket
-classes, and wildcard syntax (`x`, `X`, or `.`). If your input uses IUPAC/IUBMB
-ambiguity letters, rewrite them into bracket classes or wildcards before
-calling the API.
+classes, and wildcard syntax (`.`, `x`, or `X`). The canonical normalized
+representation uses `.`, but `x` and `X` are still accepted on input. If your
+input uses IUPAC/IUBMB ambiguity letters, rewrite them into bracket classes or
+wildcards before calling the API.
 
 For nucleotide alphabets, use the NC-IUB ambiguity codes as follows:
 
@@ -52,7 +53,7 @@ For nucleotide alphabets, use the NC-IUB ambiguity codes as follows:
 | `B` | `[CGT]` | `[CGU]` |
 | `V` | `[ACG]` | `[ACG]` |
 | `D` | `[AGT]` | `[AGU]` |
-| `N` | `x` or `.` | `x` or `.` |
+| `N` | `.` or `x` | `.` or `x` |
 
 For the current 20-residue protein alphabet, the relevant IUPAC-IUB ambiguity
 codes are:
@@ -71,14 +72,14 @@ You can use Julia's `replace` function to rewrite motifs with IUPAC codes into t
 appropriate format for CompariMotif. For example:
 
 ```jldoctest persist_results
-julia> clean_dna_motif = replace("ARYN", "R" => "[AG]", "Y" => "[CT]", "N" => "x")
-"A[AG][CT]x"
+julia> clean_dna_motif = replace("ARYN", "R" => "[AG]", "Y" => "[CT]", "N" => ".")
+"A[AG][CT]."
 
 julia> clean_rna_motif = replace("AUHB", "H" => "[ACU]", "B" => "[CGU]")
 "AU[ACU][CGU]"
 
-julia> clean_protein_motif = replace("ABZX", "B" => "[DN]", "Z" => "[EQ]")
-"A[DN][EQ]X"
+julia> clean_protein_motif = replace("ABZX", "B" => "[DN]", "Z" => "[EQ]", "X" => ".")
+"A[DN][EQ]."
 ```
 
 ## How do I switch alphabets?

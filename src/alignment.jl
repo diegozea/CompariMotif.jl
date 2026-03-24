@@ -239,7 +239,7 @@ function _match_symbol(
         if qpos.kind == spos.kind
             return _anchor_symbol(qpos)
         end
-        return "x"
+        return "."
     elseif qpos.kind !== _RESIDUE
         return _anchor_mismatch_symbol(qpos, spos, spec)
     elseif spos.kind !== _RESIDUE
@@ -250,7 +250,7 @@ function _match_symbol(
     swild = _is_wildcard(spos, spec.mask)
     if qwild && swild
         # Preserve compact wildcard representation in overlap output.
-        return "x"
+        return "."
     end
 
     qclass = ResidueClass(qpos.mask)
@@ -258,18 +258,18 @@ function _match_symbol(
     if mismatch
         # Mismatch still contributes a descriptive symbol in the matched pattern.
         union_mask = unionclass(qclass, sclass).mask
-        return _mask_to_symbol(union_mask, spec; as_lowercase = true, wildcard_symbol = "x")
+        return _mask_to_symbol(union_mask, spec; as_lowercase = true)
     end
     if relation == _REL_EXACT
-        return _mask_to_symbol(intersection, spec; as_lowercase = false, wildcard_symbol = "x")
+        return _mask_to_symbol(intersection, spec)
     end
     if qwild
-        return _mask_to_symbol(spos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
+        return _mask_to_symbol(spos.mask, spec; as_lowercase = true)
     elseif swild
-        return _mask_to_symbol(qpos.mask, spec; as_lowercase = true, wildcard_symbol = "x")
+        return _mask_to_symbol(qpos.mask, spec; as_lowercase = true)
     end
     union_mask = unionclass(qclass, sclass).mask
-    return _mask_to_symbol(union_mask, spec; as_lowercase = true, wildcard_symbol = "x")
+    return _mask_to_symbol(union_mask, spec; as_lowercase = true)
 end
 
 """

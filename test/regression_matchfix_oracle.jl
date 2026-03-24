@@ -51,8 +51,7 @@
                     CompariMotif._mask_to_symbol(
                         mask,
                         spec;
-                        as_lowercase = lowercase_body,
-                        wildcard_symbol = "x"
+                        as_lowercase = lowercase_body
                     )
                 )
                 i = nextind(pattern, close_idx)
@@ -181,7 +180,7 @@
             @test result.query_relationship == row["Sim1"]
             @test result.search_relationship == row["Sim2"]
             @test canonicalize_match_pattern(result.matched_pattern) ==
-                  canonicalize_match_pattern(replace(row["Match"], '.' => 'x'))
+                  canonicalize_match_pattern(row["Match"])
             @test result.matched_positions == parse(Int, row["MatchPos"])
             @test result.match_ic ≈ parse(Float64, row["MatchIC"]) atol = 1e-3
             @test result.normalized_ic ≈ parse(Float64, row["NormIC"]) atol = 1e-3

@@ -39,8 +39,8 @@ deliberately.
 ```@repl internal_api_pipeline
 using CompariMotif # hide
 options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0);
-parsed_query = CompariMotif._parse_motif("[KR]xLx{0,1}[FYLIVMP]", options);
-parsed_search = CompariMotif._parse_motif("RxLE", options);
+parsed_query = CompariMotif._parse_motif("[KR].L.{0,1}[FYLIVMP]", options);
+parsed_search = CompariMotif._parse_motif("R.LE", options);
 parsed_query.normalized
 parsed_search.normalized
 ```
@@ -110,7 +110,7 @@ alignment's relationships, matched pattern, and information-content summary
 into the stable API object returned by [`compare`](@ref).
 
 ```@repl internal_api_pipeline
-result = compare("[KR]xLx{0,1}[FYLIVMP]", "RxLE", options);
+result = compare("[KR].L.{0,1}[FYLIVMP]", "R.LE", options);
 (result.query_relationship, result.search_relationship)
 round(result.match_ic, digits = 3)
 round(result.score, digits = 3)

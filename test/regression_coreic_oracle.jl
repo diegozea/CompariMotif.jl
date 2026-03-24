@@ -54,15 +54,14 @@
                     CompariMotif._mask_to_symbol(
                         mask,
                         spec;
-                        as_lowercase = all(islowercase, residues),
-                        wildcard_symbol = "x"
+                        as_lowercase = all(islowercase, residues)
                     )
                 end
                 print(io, '[', anchors, normalized_residues, ']')
                 i = nextind(pattern, close_idx)
                 continue
             end
-            print(io, pattern[i] == '.' ? 'x' : pattern[i])
+            print(io, pattern[i])
             i = nextind(pattern, i)
         end
         return String(take!(io))
@@ -152,7 +151,7 @@ end
     @test result.matched
     @test result.query_relationship == "Exact Match"
     @test result.search_relationship == "Exact Match"
-    @test result.matched_pattern == raw"AxxK"
+    @test result.matched_pattern == raw"A..K"
     @test result.matched_positions == 2
     @test result.match_ic ≈ 2.000 atol = 1e-3
     @test result.normalized_ic ≈ 1.000 atol = 1e-3
@@ -183,15 +182,14 @@ end
                     CompariMotif._mask_to_symbol(
                         mask,
                         spec;
-                        as_lowercase = all(islowercase, residues),
-                        wildcard_symbol = "x"
+                        as_lowercase = all(islowercase, residues)
                     )
                 end
                 print(io, '[', anchors, normalized_residues, ']')
                 i = nextind(pattern, close_idx)
                 continue
             end
-            print(io, pattern[i] == '.' ? 'x' : pattern[i])
+            print(io, pattern[i])
             i = nextind(pattern, i)
         end
         return String(take!(io))

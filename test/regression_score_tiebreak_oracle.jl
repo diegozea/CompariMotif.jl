@@ -136,11 +136,11 @@
     @test (best_78["Name1"], best_78["Name2"]) == ("M0007", "M0008")
     @test results[7, 8].query_relationship == "Exact Overlap"
     @test results[7, 8].search_relationship == "Exact Overlap"
-    @test results[7, 8].matched_pattern == replace(best_78["Match"], '.' => 'x')
+    @test results[7, 8].matched_pattern == best_78["Match"]
 
     best_87 = best_by_pair[(8, 7)]
     @test (best_87["Name1"], best_87["Name2"]) == ("M0008", "M0007")
     @test results[8, 7].query_relationship == "Degenerate Match"
     @test results[8, 7].search_relationship == "Variant Match"
-    @test results[8, 7].matched_pattern == replace(best_87["Match"], '.' => 'x')
+    @test results[8, 7].matched_pattern == best_87["Match"]
 end

@@ -8,11 +8,11 @@
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
 
     @testset "parse and normalize" begin
-        parsed_query = CompariMotif._parse_motif("[KR]xLx{0,1}[FYLIVMP]", options)
-        parsed_search = CompariMotif._parse_motif("RxLE", options)
+        parsed_query = CompariMotif._parse_motif("[KR].L.{0,1}[FYLIVMP]", options)
+        parsed_search = CompariMotif._parse_motif("R.LE", options)
 
-        @test parsed_query.normalized == "[RK]xLx{0,1}[ILMFPYV]"
-        @test parsed_search.normalized == "RxLE"
+        @test parsed_query.normalized == "[RK].L.{0,1}[ILMFPYV]"
+        @test parsed_search.normalized == "R.LE"
         @test length(parsed_query.alternatives) == 1
         @test length(parsed_search.alternatives) == 1
 
@@ -21,12 +21,12 @@
         search_variants = CompariMotif._expand_variants(parsed_search, options, spec)
 
         @test [variant.normalized for variant in query_variants] == [
-            "[RK]xL[ILMFPYV]",
-            "[RK]xLx[ILMFPYV]"
+            "[RK].L[ILMFPYV]",
+            "[RK].L.[ILMFPYV]"
         ]
         @test round.([variant.information for variant in query_variants], digits = 2) ==
               [2.12, 2.12]
-        @test only(search_variants).normalized == "RxLE"
+        @test only(search_variants).normalized == "R.LE"
         @test round(only(search_variants).information, digits = 3) == 3.0
 
         @testset "precise match pre-pass" begin
@@ -51,14 +51,14 @@
                 spec
             )
 
-            @test candidate.matched_pattern == "[rk]xLe"
+            @test candidate.matched_pattern == "[rk].Le"
             @test candidate.matched_positions == 2
             @test round(candidate.normalized_ic, digits = 3) == 0.835
         end
     end
 
     @testset "public result materialization" begin
-        result = compare("[KR]xLx{0,1}[FYLIVMP]", "RxLE", options)
+        result = compare("[KR].L.{0,1}[FYLIVMP]", "R.LE", options)
 
         @test result.matched
         @test result.query_relationship == "Degenerate Parent"
