@@ -37,15 +37,17 @@
   This improves candidate selection for motifs with alternation and repeat
   expansion.
 - Fixed the final shift-selection tie-break to follow the shift order inferred
-  from black-box oracle tie cases when `match_ic`, matched positions, score,
-  and exact fixed-position matches are all tied.
+  from black-box oracle tie cases when `match_ic`, matched positions, and
+  `score` are all tied.
 - Fixed alternation-heavy motifs to enforce `max_variants` during grouped-branch
   parsing, so pathological branch growth is rejected before full parse-time
   expansion.
 - Wildcard aliases `x`, `X`, and `.` are now treated identically in canonical
   parsing and normalization, even in top-level grouped alternations. This is an
-  intentional divergence from the current oracle quirk, which drops wildcard-only
-  top-level grouped branches such as `(Q|x)` and `(Q|.){2}`.
+  intentional divergence from the current oracle quirk, where top-level
+  `(Q|.)`-style grouped branches can disappear entirely while `(Q|x)` and
+  `(Q|X)` retain the non-wildcard branch and only lose the wildcard-alias
+  branch.
 - Positive character classes are intentionally treated as sets, so duplicate
   residues like `[AA]` and `[A]` compare identically even though the current
   oracle may score them differently.

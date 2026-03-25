@@ -44,9 +44,10 @@ stricter regex grammar.
   `(A|C){2}` expands to `AA` and `CC`, while `(AC|GT){2}` expands to `ACC`
   and `GTT` (equivalently normalized as `(AC{2})|(GT{2})`).
 - The upstream black-box oracle has a grouped-alternation quirk where
-  top-level wildcard-only branches such as `(Q|.)`, `(Q|x)`, `(Q|X)`, and
-  `(Q|.){2}` are dropped entirely, while embedded forms like `A(Q|x)L` still
-  expand. This package intentionally does not reproduce that behavior. Instead, 
+  top-level wildcard-only branches such as `(Q|.)` and `(Q|.){2}` are dropped
+  entirely, while top-level `(Q|x)` and `(Q|X)` retain the `Q` branch and only
+  lose the wildcard-alias branch; embedded forms like `A(Q|x)L` still expand.
+  This package intentionally does not reproduce that behavior. Instead,
   canonical normalization always treats `x`, `X`, `.`, and explicit
   full-alphabet classes as the same wildcard syntax. For example,
   `(Q|[ARNDCQEGHILKMFPSTWYV])` normalizes as `(Q)|(.)`.
