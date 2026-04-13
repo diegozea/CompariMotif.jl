@@ -1,4 +1,4 @@
-@testitem "oracle alternation parity fixture" begin
+@testitem "oracle alternation variant-order parity fixture" begin
     function load_fixture_motifs(path::String)
         motifs = String[]
         for line in eachline(path)
@@ -39,8 +39,6 @@
         return idx === nothing ? name : name[firstindex(name):prevind(name, idx)]
     end
 
-    oracle_to_package(rel::String) = replace(rel, "Ugly" => "Complex")
-
     function row_is_better(a::Dict{String, String}, b::Dict{String, String})
         a_match_ic = parse(Float64, a["MatchIC"])
         b_match_ic = parse(Float64, b["MatchIC"])
@@ -60,13 +58,13 @@
             return a_score > b_score
         end
 
-        return (a["Name1"], a["Name2"], a["Motif1"], a["Motif2"]) <
-               (b["Name1"], b["Name2"], b["Motif1"], b["Motif2"])
+        return (a["Name1"], a["Name2"], a["Motif1"], a["Motif2"], a["Match"]) <
+               (b["Name1"], b["Name2"], b["Motif1"], b["Motif2"], b["Match"])
     end
 
     root = dirname(@__DIR__)
-    motifs_path = joinpath(root, "data", "fixtures", "alternation_probe_motifs.tsv")
-    oracle_path = joinpath(root, "data", "fixtures", "oracle_alternation_probe_normalized.tsv")
+    motifs_path = joinpath(root, "data", "fixtures", "variant_order_probe_motifs.tsv")
+    oracle_path = joinpath(root, "data", "fixtures", "oracle_variant_order_probe_normalized.tsv")
 
     patterns = load_fixture_motifs(motifs_path)
     id_to_index = Dict("M$(lpad(string(idx), 4, '0'))" => idx
@@ -88,16 +86,17 @@
         end
     end
 
-    expected_pairs = Set(keys(best_by_pair))
     for (pair, row) in best_by_pair
         qi, si = pair
         result = results[qi, si]
         @test result.matched
-        @test result.query_relationship == oracle_to_package(row["Sim1"])
-        @test result.search_relationship == oracle_to_package(row["Sim2"])
+        @test result.query_relationship == row["Sim1"]
+        @test result.search_relationship == row["Sim2"]
+        @test result.matched_pattern == row["Match"]
         @test result.matched_positions == parse(Int, row["MatchPos"])
         @test result.match_ic ≈ parse(Float64, row["MatchIC"]) atol = 1e-3
         @test result.normalized_ic ≈ parse(Float64, row["NormIC"]) atol = 1e-3
+        @test result.core_ic ≈ parse(Float64, row["CoreIC"]) atol = 1e-3
         @test result.score ≈ parse(Float64, row["Score"]) atol = 1e-3
         @test result.query_information ≈ parse(Float64, row["Info1"]) atol = 1e-2
         @test result.search_information ≈ parse(Float64, row["Info2"]) atol = 1e-2
@@ -110,10 +109,42 @@
             push!(observed_pairs, (i, j))
         end
     end
-    @test observed_pairs == expected_pairs
+    @test observed_pairs == Set(keys(best_by_pair))
 
-    @test results[11, 12].query_relationship == "Variant Match"
-    @test results[11, 12].search_relationship == "Degenerate Match"
-    @test results[11, 13].query_relationship == "Variant Overlap"
-    @test results[11, 13].search_relationship == "Degenerate Overlap"
+    @test results[1, 2].query_relationship == "Exact Overlap"
+    @test results[1, 2].search_relationship == "Exact Overlap"
+    @test results[1, 2].matched_pattern == "QQ"
+
+    @test results[1, 3].query_relationship == "Variant Match"
+    @test results[1, 3].search_relationship == "Degenerate Match"
+    @test results[1, 3].matched_pattern == "[nq]Q[st]"
+
+    @test results[2, 1].query_relationship == "Exact Overlap"
+    @test results[2, 1].search_relationship == "Exact Overlap"
+    @test results[3, 1].query_relationship == "Degenerate Match"
+    @test results[3, 1].search_relationship == "Variant Match"
+
+    @test results[4, 5].query_relationship == "Exact Match"
+    @test results[4, 5].search_relationship == "Exact Match"
+    @test results[4, 5].matched_pattern == "QQ"
+
+    @test results[5, 4].query_relationship == "Exact Match"
+    @test results[5, 4].search_relationship == "Exact Match"
+    @test results[5, 4].matched_pattern == "QQ"
+
+    @test results[6, 7].query_relationship == "Exact Parent"
+    @test results[6, 7].search_relationship == "Exact Subsequence"
+    @test results[6, 7].matched_pattern == "AA"
+
+    @test results[7, 6].query_relationship == "Exact Subsequence"
+    @test results[7, 6].search_relationship == "Exact Parent"
+    @test results[7, 6].matched_pattern == "AA"
+
+    @test results[8, 9].query_relationship == "Variant Match"
+    @test results[8, 9].search_relationship == "Degenerate Match"
+    @test results[8, 9].matched_pattern == "[aq]"
+
+    @test results[10, 9].query_relationship == "Variant Match"
+    @test results[10, 9].search_relationship == "Degenerate Match"
+    @test results[10, 9].matched_pattern == "[aq]"
 end

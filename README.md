@@ -130,13 +130,17 @@ implementation choices differ intentionally:
   class is used instead. This implementation follows the oracle behavior for scoring
   while retaining the paper's `Complex` relationship terminology rather than the
   oracle's `Ugly` label.
+- The paper presents CompariMotif in a way that suggests mostly symmetric
+  comparisons, with swapped motifs mainly leading to swapped relationship
+  labels. The upstream oracle is also direction-dependent in some late
+  branch-selection and tie classes, so a package that stays close to the
+  oracle can still return different best hits for `compare(a, b)` and
+  `compare(b, a)`. CompariMotif.jl follows deterministic oracle-backed branch
+  visitation and tie rules rather than forcing those cases to be symmetric.
 - The paper defines per-position information content, `match_ic`, normalized IC,
   and score, but it does not define the `CoreIC` column emitted by the original
   software. Accordingly, this package treats `core_ic` as an oracle-defined
   field.
-- Ranged repeats and alternations are expanded into concrete motif variants. This
-  expansion is limited by `max_variants` in `ComparisonOptions` (default `10_000`) to
-  prevent pathological combinatorial growth.
 
 ### Fixtures and oracle regeneration
 

@@ -14,12 +14,34 @@ end
     @test CompariMotif._normalize_motif("(A|C){2}") == "(A{2})|(C{2})"
     @test CompariMotif._normalize_motif("(AC|GT){2}") == "(AC{2})|(GT{2})"
     @test CompariMotif._normalize_motif("R(KL)I") == "RKLI"
+    @test CompariMotif._normalize_motif("(A.L)|(AQL)") == "(AQL)|(A.L)"
+    @test CompariMotif._normalize_motif("A(.|Q)L") == "(AQL)|(A.L)"
+    @test CompariMotif._normalize_motif("(Q[QL])|(Q.)") == "(Q.)|(Q[QL])"
+    @test CompariMotif._normalize_motif("(.|Q)L") == "(QL)|(.L)"
+    @test CompariMotif._normalize_motif("(^Q)|(Q)") == "(Q)|(^Q)"
+    @test CompariMotif._normalize_motif("A((.|Q)|W)L") == "(AQL)|(AWL)|(A.L)"
+    @test CompariMotif._normalize_motif("(.{0,1}AA)|(.AA)") == "(.AA)|(.{0,1}AA)"
+    @test CompariMotif._normalize_motif("(QQ[ST])|(QQ{1,2})") == "(QQ{1,2})|(QQ[ST])"
+    @test CompariMotif._normalize_motif("(A.{0,1})|(A{1,2})") == "(A{1,2})|(A.{0,1})"
+    @test CompariMotif._normalize_motif("(A{1,4})|(A{1,3})") == "(A{1,3})|(A{1,4})"
+    @test CompariMotif._normalize_motif("(A{1,3})|(A{2,3})") == "(A{1,3})|(A{2,3})"
+    @test CompariMotif._normalize_motif("(A{2,3})|(A{1,3})") == "(A{1,3})|(A{2,3})"
 
     options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+    # Oracle-derived canonical residue order for grouped alternation branches:
+    # A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y.
+    canonical_residues = ["A", "C", "D", "E", "F", "G", "H", "I", "K", "L",
+        "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y"]
+    residue_rank = Dict(residue => idx for (idx, residue) in enumerate(canonical_residues))
+
+    expected_branch_order(a::String, b::String) = residue_rank[a] < residue_rank[b] ?
+                                                  [a, b] : [b, a]
+
     result = compare("(RKLI)|(AQLI)", "AQLI", options)
     @test result.matched
     @test result.query_relationship == "Exact Match"
-    @test result.normalized_query == "(RKLI)|(AQLI)"
+    @test result.normalized_query == "(AQLI)|(RKLI)"
 
     class_equivalence = compare("(K|Q)", "[KQ]", options)
     @test class_equivalence.matched
@@ -30,6 +52,278 @@ end
     @test redundant_grouping.matched
     @test redundant_grouping.query_relationship == "Exact Match"
     @test redundant_grouping.normalized_query == "RKLI"
+
+    reordered = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("([ST]QQ)|(QQ[ST])", options),
+        options,
+        spec
+    )
+    @test getfield.(reordered, :normalized) == ["QQ[ST]", "[ST]QQ"]
+
+    bounded_repeat = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(QQ[ST])|(QQ{1,2})", options),
+        options,
+        spec
+    )
+    @test getfield.(bounded_repeat, :normalized) == ["QQ", "QQQ", "QQ[ST]"]
+
+    reverse_bounded_repeat = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(QQ{1,2})|(QQ[ST])", options),
+        options,
+        spec
+    )
+    @test getfield.(reverse_bounded_repeat, :normalized) == ["QQ", "QQQ", "QQ[ST]"]
+
+    concrete_variant_tiebreak = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(A{1,2})|(A.{0,1})", options),
+        options,
+        spec
+    )
+    @test getfield.(concrete_variant_tiebreak, :normalized) == ["A", "AA", "A", "A."]
+
+    reverse_concrete_variant_tiebreak = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(A.{0,1})|(A{1,2})", options),
+        options,
+        spec
+    )
+    @test getfield.(reverse_concrete_variant_tiebreak, :normalized) ==
+          ["A", "AA", "A", "A."]
+
+    overlapping_repeat_tiebreak = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(A{1,3})|(A{2,3})", options),
+        options,
+        spec
+    )
+    @test getfield.(overlapping_repeat_tiebreak, :normalized) ==
+          ["A", "AA", "AAA", "AA", "AAA"]
+
+    reverse_overlapping_repeat_tiebreak = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(A{2,3})|(A{1,3})", options),
+        options,
+        spec
+    )
+    @test getfield.(reverse_overlapping_repeat_tiebreak, :normalized) ==
+          ["A", "AA", "AAA", "AA", "AAA"]
+
+    for i in eachindex(canonical_residues), j in eachindex(canonical_residues)
+
+        i == j && continue
+        a = canonical_residues[i]
+        b = canonical_residues[j]
+        expected = expected_branch_order(a, b)
+
+        plain = CompariMotif._expand_variants(
+            CompariMotif._parse_motif("($a|$b)", options),
+            options,
+            spec
+        )
+        quantified = CompariMotif._expand_variants(
+            CompariMotif._parse_motif("($a|$b){2}", options),
+            options,
+            spec
+        )
+
+        @test getfield.(plain, :normalized) == expected
+        @test getfield.(quantified, :normalized) ==
+              [repeat(expected[1], 2), repeat(expected[2], 2)]
+    end
+
+    mandatory_first = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(.AA)|(.{0,1}AA)", options),
+        options,
+        spec
+    )
+    @test getfield.(mandatory_first, :normalized) == [".AA", "AA", ".AA"]
+
+    reverse_mandatory_first = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(.{0,1}AA)|(.AA)", options),
+        options,
+        spec
+    )
+    @test getfield.(reverse_mandatory_first, :normalized) == [".AA", "AA", ".AA"]
+
+    repeat_tiebreak_probe = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("[DE].{0,2}[DE].{0,2}[ADE].{0,1}[CF]\$", options),
+        options,
+        spec
+    )
+    @test getfield.(repeat_tiebreak_probe, :normalized)[1:9] == [
+        "[DE][DE][ADE][CF]\$",
+        "[DE][DE][ADE].[CF]\$",
+        "[DE][DE].[ADE][CF]\$",
+        "[DE][DE].[ADE].[CF]\$",
+        "[DE][DE]..[ADE][CF]\$",
+        "[DE][DE]..[ADE].[CF]\$",
+        "[DE].[DE][ADE][CF]\$",
+        "[DE].[DE][ADE].[CF]\$",
+        "[DE].[DE].[ADE][CF]\$"
+    ]
+
+    not_p = "[ARNDCQEGHILKMFSTWYV]"
+    rk = "[RK]"
+    multi_range_probe = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("[ST]{0,1}V.G[^P]{0,2}[KR]{1,2}", options),
+        options,
+        spec
+    )
+    @test getfield.(multi_range_probe, :normalized) == [
+        "V.G" * rk,
+        "V.G" * rk * rk,
+        "V.G" * not_p * rk,
+        "V.G" * not_p * rk * rk,
+        "V.G" * not_p * not_p * rk,
+        "V.G" * not_p * not_p * rk * rk,
+        "[ST]V.G" * rk,
+        "[ST]V.G" * rk * rk,
+        "[ST]V.G" * not_p * rk,
+        "[ST]V.G" * not_p * rk * rk,
+        "[ST]V.G" * not_p * not_p * rk,
+        "[ST]V.G" * not_p * not_p * rk * rk
+    ]
+
+    bounded_repeat_match = compare("(QQ[ST])|(QQ{1,2})", "QQ", options)
+    @test bounded_repeat_match.matched
+    @test bounded_repeat_match.query_relationship == "Exact Match"
+    @test bounded_repeat_match.search_relationship == "Exact Match"
+    @test bounded_repeat_match.matched_pattern == "QQ"
+
+    mandatory_repeat_match = compare("(.AA)|(.{0,1}AA)", "AA", options)
+    @test mandatory_repeat_match.matched
+    @test mandatory_repeat_match.query_relationship == "Exact Parent"
+    @test mandatory_repeat_match.search_relationship == "Exact Subsequence"
+    @test mandatory_repeat_match.matched_pattern == "AA"
+
+    explicit_tie_branch_order = compare("(A.QQ)|(QQA)", "(.QQ)|(.{0,1}QQ)", options)
+    @test explicit_tie_branch_order.matched
+    @test explicit_tie_branch_order.query_relationship == "Exact Parent"
+    @test explicit_tie_branch_order.search_relationship == "Exact Subsequence"
+    @test explicit_tie_branch_order.matched_pattern == ".QQ"
+
+    overlapping_repeat_match = compare("(A{1,3}|A{2,3})", "[QA]", options)
+    @test overlapping_repeat_match.matched
+    @test overlapping_repeat_match.query_relationship == "Variant Match"
+    @test overlapping_repeat_match.search_relationship == "Degenerate Match"
+    @test overlapping_repeat_match.matched_pattern == "[aq]"
+
+    embedded_group_variants = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A(Q|.)L", options),
+        options,
+        spec
+    )
+    @test getfield.(embedded_group_variants, :normalized) == ["AQL", "A.L"]
+
+    reverse_embedded_group_variants = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(A.L)|(AQL)", options),
+        options,
+        spec
+    )
+    @test getfield.(reverse_embedded_group_variants, :normalized) == ["AQL", "A.L"]
+
+    embedded_specificity_variants = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("Q(.|[QL])", options),
+        options,
+        spec
+    )
+    @test getfield.(embedded_specificity_variants, :normalized) == ["Q.", "Q[QL]"]
+
+    reverse_embedded_specificity_variants = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(Q[QL])|(Q.)", options),
+        options,
+        spec
+    )
+    @test getfield.(reverse_embedded_specificity_variants, :normalized) == ["Q.", "Q[QL]"]
+
+    anchor_branch_variants = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("(^Q)|(Q)", options),
+        options,
+        spec
+    )
+    @test getfield.(anchor_branch_variants, :normalized) == ["Q", "^Q"]
+
+    embedded_specificity_match = compare("Q(.|[QL])", "[QL].", options)
+    @test embedded_specificity_match.matched
+    @test embedded_specificity_match.query_relationship == "Variant Match"
+    @test embedded_specificity_match.search_relationship == "Degenerate Match"
+
+    embedded_specificity_overlap = compare("Q(.|[QL])", ".[QL]", options)
+    @test embedded_specificity_overlap.matched
+    @test embedded_specificity_overlap.query_relationship == "Variant Overlap"
+    @test embedded_specificity_overlap.search_relationship == "Degenerate Overlap"
+
+    nested_group_variants = CompariMotif._expand_variants(
+        CompariMotif._parse_motif("A((.|Q)|W)L", options),
+        options,
+        spec
+    )
+    @test getfield.(nested_group_variants, :normalized) == ["AQL", "AWL", "A.L"]
+end
+
+@testitem "_branch_order_tokens comment examples" begin
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+
+    branch_and_order(motif::AbstractString) = begin
+        tokens = CompariMotif._parse_linear_tokens(motif, spec)
+        return tokens, CompariMotif._branch_order_tokens(tokens)
+    end
+
+    tokens_r2, order_r2 = branch_and_order("R{2}")
+    @test [(tok.min_repeat, tok.max_repeat) for tok in order_r2] == [(1, 1), (1, 1)]
+    @test all(tok -> CompariMotif._same_position(tok.position, tokens_r2[1].position), order_r2)
+
+    tokens_r24, order_r24 = branch_and_order("R{2,4}")
+    @test [(tok.min_repeat, tok.max_repeat) for tok in order_r24] ==
+          [(1, 1), (1, 1), (0, 2)]
+    @test all(tok -> CompariMotif._same_position(tok.position, tokens_r24[1].position), order_r24)
+
+    tokens_r03, order_r03 = branch_and_order("R{0,3}")
+    @test [(tok.min_repeat, tok.max_repeat) for tok in order_r03] == [(0, 3)]
+    @test all(tok -> CompariMotif._same_position(tok.position, tokens_r03[1].position), order_r03)
+end
+
+@testitem "_order_token_repeat_key docstring examples" begin
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+
+    exact = only(CompariMotif._parse_linear_tokens("R{3}", spec))
+    ranged = only(CompariMotif._parse_linear_tokens("R{2,4}", spec))
+    optional_tail = last(CompariMotif._branch_order_tokens([ranged]))
+
+    @test CompariMotif._order_token_repeat_key(exact) == (0, 3)
+    @test CompariMotif._order_token_repeat_key(ranged) == (1, 4)
+    @test CompariMotif._order_token_repeat_key(optional_tail) == (1, 2)
+end
+
+@testitem "branch ordering fallback helpers" begin
+    options = ComparisonOptions(; min_shared_positions = 1, normalized_ic_cutoff = 0.0)
+    spec = CompariMotif._alphabet_spec(options.alphabet)
+
+    left_repeat_overlap = CompariMotif._branch_order_tokens(
+        CompariMotif._parse_linear_tokens("CA{0,1}", spec)
+    )
+    right_repeat_overlap = CompariMotif._branch_order_tokens(
+        CompariMotif._parse_linear_tokens("AA", spec)
+    )
+    @test CompariMotif._repeat_overlap_ordering(
+        left_repeat_overlap,
+        right_repeat_overlap,
+        2
+    ) === nothing
+
+    tied_tokens = CompariMotif._parse_linear_tokens("AA", spec)
+    tied_order_tokens = CompariMotif._branch_order_tokens(tied_tokens)
+    earlier_branch = (;
+        branch_index = 1,
+        tokens = tied_tokens,
+        order_tokens = tied_order_tokens
+    )
+    later_branch = (;
+        branch_index = 2,
+        tokens = copy(tied_tokens),
+        order_tokens = copy(tied_order_tokens)
+    )
+    @test CompariMotif._branch_tokens_isless(earlier_branch, later_branch, spec)
+    @test !CompariMotif._branch_tokens_isless(later_branch, earlier_branch, spec)
 end
 
 @testitem "oracle parser corner cases" begin
@@ -76,6 +370,10 @@ end
     @test [CompariMotif._normalized_from_tokens(tokens)
            for tokens in dot_group.alternatives] == ["Q", "."]
     @test compare("(Q|.)", "Q", options).matched
+    reverse_dot_group = CompariMotif._parse_motif("(.|Q)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in reverse_dot_group.alternatives] == ["Q", "."]
+    @test compare("(.|Q)", "Q", options).matched
 
     upper_x_group = CompariMotif._parse_motif("(Q|X)", options)
     @test [CompariMotif._normalized_from_tokens(tokens)
@@ -101,17 +399,45 @@ end
           ["AQL", "A.L"]
     @test compare("A(Q|.)L", "AQL", options).matched
 
+    embedded_specificity_group = CompariMotif._parse_motif("Q(.|[QL])", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in embedded_specificity_group.alternatives] ==
+          ["Q.", "Q[QL]"]
+    reverse_embedded_specificity_group = CompariMotif._parse_motif("(Q[QL])|(Q.)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in reverse_embedded_specificity_group.alternatives] ==
+          ["Q.", "Q[QL]"]
+
+    anchor_group = CompariMotif._parse_motif("(^Q)|(Q)", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in anchor_group.alternatives] ==
+          ["Q", "^Q"]
+
     suffix_dot_group = CompariMotif._parse_motif("(Q|.)L", options)
     @test [CompariMotif._normalized_from_tokens(tokens)
            for tokens in suffix_dot_group.alternatives] ==
           ["QL", ".L"]
     @test compare("(Q|.)L", "QL", options).matched
 
+    preserved_suffix_group = CompariMotif._parse_motif("(.|Q)L", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in preserved_suffix_group.alternatives] ==
+          ["QL", ".L"]
+    preserved_suffix_quantifier_group = CompariMotif._parse_motif("(.|Q)C{2}", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in preserved_suffix_quantifier_group.alternatives] ==
+          ["QC{2}", ".C{2}"]
+
     prefix_dot_group = CompariMotif._parse_motif("A(Q|.)", options)
     @test [CompariMotif._normalized_from_tokens(tokens)
            for tokens in prefix_dot_group.alternatives] ==
           ["AQ", "A."]
     @test compare("A(Q|.)", "AQ", options).matched
+
+    nested_group = CompariMotif._parse_motif("A((.|Q)|W)L", options)
+    @test [CompariMotif._normalized_from_tokens(tokens)
+           for tokens in nested_group.alternatives] ==
+          ["AQL", "AWL", "A.L"]
 
     embedded_upper_x_group = CompariMotif._parse_motif("A(Q|X)L", options)
     @test [CompariMotif._normalized_from_tokens(tokens)
@@ -549,6 +875,189 @@ end
     @test reverse_oracle_shift_tiebreak.query_relationship == "Degenerate Match"
     @test reverse_oracle_shift_tiebreak.search_relationship == "Variant Match"
     @test reverse_oracle_shift_tiebreak.matched_pattern == "Aa"
+
+    less_ambiguous_tiebreak = compare("DE.", "[DE]{0,2}[DE].{0,2}[DE].{2,4}[CF].[CF]", options)
+    @test less_ambiguous_tiebreak.matched
+    @test less_ambiguous_tiebreak.query_relationship == "Variant Subsequence"
+    @test less_ambiguous_tiebreak.search_relationship == "Degenerate Parent"
+    @test less_ambiguous_tiebreak.matched_pattern == "[de][de]."
+
+    fuller_coverage_tiebreak = compare(".(A)..C\$", "[DE].{0,2}[DE].{0,2}[ADE].{0,1}[CF]\$", options)
+    @test fuller_coverage_tiebreak.matched
+    @test fuller_coverage_tiebreak.query_relationship == "Complex Match"
+    @test fuller_coverage_tiebreak.search_relationship == "Complex Match"
+    @test fuller_coverage_tiebreak.matched_pattern == "[de]a[de][ade][cf]\$"
+
+    shorter_complex_overlap_tiebreak = compare("A.{0,1}A.{2,3}\$", "[AS].{0,2}S\$", options)
+    @test shorter_complex_overlap_tiebreak.matched
+    @test shorter_complex_overlap_tiebreak.query_relationship == "Complex Parent"
+    @test shorter_complex_overlap_tiebreak.search_relationship == "Complex Subsequence"
+    @test shorter_complex_overlap_tiebreak.matched_pattern == "[as].s\$"
+
+    single_position_overlap_wins = compare("AA.", "[AS].{0,2}S\$", options)
+    @test single_position_overlap_wins.matched
+    @test single_position_overlap_wins.query_relationship == "Complex Overlap"
+    @test single_position_overlap_wins.search_relationship == "Complex Overlap"
+    @test single_position_overlap_wins.matched_pattern == "[as]s"
+
+    contained_complex_tiebreak = compare("[ST]{0,1}V.G[^P]{0,2}[KR]{1,2}", "R...[KR]R.", options)
+    @test contained_complex_tiebreak.matched
+    @test contained_complex_tiebreak.query_relationship == "Complex Subsequence"
+    @test contained_complex_tiebreak.search_relationship == "Complex Parent"
+    @test contained_complex_tiebreak.matched_positions == 2
+    @test contained_complex_tiebreak.score ≈ 1.1104756749277043 atol = 1e-12
+
+    single_position_subsequence_falls_back_to_overlap = compare(
+        "R.x{0,1}L",
+        "H[LM]H(([KR][^H].)|(.[^H][KR]))",
+        options
+    )
+    @test single_position_subsequence_falls_back_to_overlap.matched
+    @test single_position_subsequence_falls_back_to_overlap.query_relationship ==
+          "Complex Overlap"
+    @test single_position_subsequence_falls_back_to_overlap.search_relationship ==
+          "Complex Overlap"
+    @test single_position_subsequence_falls_back_to_overlap.matched_pattern == "h[lm]"
+
+    contained_complex_overlap_regression = compare(
+        "[KR]{1,4}[KR].[KR]W.",
+        "[^DE]((K[RK])|(RK))[KRP][KR][^DE]",
+        options
+    )
+    @test contained_complex_overlap_regression.matched
+    @test contained_complex_overlap_regression.query_relationship ==
+          "Complex Parent"
+    @test contained_complex_overlap_regression.search_relationship ==
+          "Complex Subsequence"
+    @test contained_complex_overlap_regression.matched_pattern ==
+          "[arncqghilkmfpstwyv][rk][RK][rkp][RK][arncqghilkmfpstwyv]"
+
+    single_position_subsequence_can_still_beat_overlap = compare(
+        "R.x{0,1}L",
+        "[KR]{1,4}[KR].[KR]W.",
+        options
+    )
+    @test single_position_subsequence_can_still_beat_overlap.matched
+    @test single_position_subsequence_can_still_beat_overlap.query_relationship ==
+          "Complex Subsequence"
+    @test single_position_subsequence_can_still_beat_overlap.search_relationship ==
+          "Complex Parent"
+    @test single_position_subsequence_can_still_beat_overlap.matched_pattern == "[rk][rk]l"
+
+    reverse_single_position_subsequence_can_still_beat_overlap = compare(
+        "[KR]{1,4}[KR].[KR]W.",
+        "R.x{0,1}L",
+        options
+    )
+    @test reverse_single_position_subsequence_can_still_beat_overlap.matched
+    @test reverse_single_position_subsequence_can_still_beat_overlap.query_relationship ==
+          "Complex Parent"
+    @test reverse_single_position_subsequence_can_still_beat_overlap.search_relationship ==
+          "Complex Subsequence"
+    @test reverse_single_position_subsequence_can_still_beat_overlap.matched_pattern ==
+          "[rk]wl"
+
+    repeat_expansion_overlap_tie_preserves_first_variant = compare(
+        "[KR]{1,4}[KR].[KR]W.",
+        "[NTSRM]..[TMSRG]Q.R..",
+        options
+    )
+    @test repeat_expansion_overlap_tie_preserves_first_variant.matched
+    @test repeat_expansion_overlap_tie_preserves_first_variant.query_relationship ==
+          "Complex Overlap"
+    @test repeat_expansion_overlap_tie_preserves_first_variant.search_relationship ==
+          "Complex Overlap"
+    @test repeat_expansion_overlap_tie_preserves_first_variant.matched_pattern ==
+          "[rk][rk].[rk]"
+
+    reverse_repeat_expansion_overlap_tie_preserves_first_variant = compare(
+        "[NTSRM]..[TMSRG]Q.R..",
+        "[KR]{1,4}[KR].[KR]W.",
+        options
+    )
+    @test reverse_repeat_expansion_overlap_tie_preserves_first_variant.matched
+    @test reverse_repeat_expansion_overlap_tie_preserves_first_variant.query_relationship ==
+          "Complex Overlap"
+    @test reverse_repeat_expansion_overlap_tie_preserves_first_variant.search_relationship ==
+          "Complex Overlap"
+    @test reverse_repeat_expansion_overlap_tie_preserves_first_variant.matched_pattern ==
+          "[rk][rk]."
+
+    wildcard_padding_subsequence_falls_back_to_overlap = compare(
+        "[^DE]((K[RK])|(RK))[KRP][KR][^DE]",
+        "[KR]{1,4}[KR].[KR]W.",
+        options
+    )
+    @test wildcard_padding_subsequence_falls_back_to_overlap.matched
+    @test wildcard_padding_subsequence_falls_back_to_overlap.query_relationship ==
+          "Complex Overlap"
+    @test wildcard_padding_subsequence_falls_back_to_overlap.search_relationship ==
+          "Complex Overlap"
+    @test wildcard_padding_subsequence_falls_back_to_overlap.matched_pattern ==
+          "[rk][RK][rkp][RK][arncqghilkmfpstwyv]"
+    @test wildcard_padding_subsequence_falls_back_to_overlap.core_ic ≈
+          0.7299838398707831 atol = 1e-12
+
+    contained_complex_review_regression = compare(
+        "[TN]{0,1}..[ASYW][FL][CGN][LI][LI].{2,3}[RH]{2,3}[^CG]",
+        "[^CG]((R[RH])|(RH))[RHQ][RH][^CG]",
+        options
+    )
+    @test contained_complex_review_regression.matched
+    @test contained_complex_review_regression.query_relationship == "Complex Overlap"
+    @test contained_complex_review_regression.search_relationship == "Complex Overlap"
+    @test contained_complex_review_regression.matched_pattern ==
+          "[arndqehilkmfpstwyv][rh][RH][rqh][arndqehilkmfpstwyv]"
+    @test contained_complex_review_regression.core_ic ≈
+          0.6601809360589201 atol = 1e-12
+
+    parent_no_longer_beats_shorter_overlap = compare(
+        "[DE].{0,2}[DE].{0,2}[ADE].{0,1}[CF]\$",
+        "[DE]{0,2}[DE].{0,2}[DE].{2,4}[CF].[CF]",
+        options
+    )
+    @test parent_no_longer_beats_shorter_overlap.matched
+    @test parent_no_longer_beats_shorter_overlap.query_relationship == "Complex Overlap"
+    @test parent_no_longer_beats_shorter_overlap.search_relationship == "Complex Overlap"
+
+    parent_complex_tiebreak_ignores_span_gap = compare("A.{0,1}A.{2,3}\$", "A.KA", options)
+    @test parent_complex_tiebreak_ignores_span_gap.matched
+    @test parent_complex_tiebreak_ignores_span_gap.query_relationship == "Complex Parent"
+    @test parent_complex_tiebreak_ignores_span_gap.search_relationship ==
+          "Complex Subsequence"
+    @test parent_complex_tiebreak_ignores_span_gap.matched_pattern == "Aaka"
+
+    generic_complex_shift_tiebreak = compare("[KRQ]L", "K.[KR].", options)
+    @test generic_complex_shift_tiebreak.matched
+    @test generic_complex_shift_tiebreak.query_relationship == "Complex Subsequence"
+    @test generic_complex_shift_tiebreak.search_relationship == "Complex Parent"
+    @test generic_complex_shift_tiebreak.matched_pattern == "[rqk]l"
+    @test generic_complex_shift_tiebreak.core_ic ≈ 0.31663710432895764 atol = 1e-12
+
+    reverse_generic_complex_shift_tiebreak = compare("K.[KR].", "[KRQ]L", options)
+    @test reverse_generic_complex_shift_tiebreak.matched
+    @test reverse_generic_complex_shift_tiebreak.query_relationship == "Complex Parent"
+    @test reverse_generic_complex_shift_tiebreak.search_relationship ==
+          "Complex Subsequence"
+    @test reverse_generic_complex_shift_tiebreak.matched_pattern == "[rqk]l"
+    @test reverse_generic_complex_shift_tiebreak.core_ic ≈ 0.3580608434035529 atol = 1e-12
+
+    rounded_score_tiebreak = compare("H.H.{0,1}QY", "H[LM]H(([KR][^H].)|(.[^H][KR]))", options)
+    @test rounded_score_tiebreak.matched
+    @test rounded_score_tiebreak.query_relationship == "Complex Subsequence"
+    @test rounded_score_tiebreak.search_relationship == "Complex Parent"
+    @test rounded_score_tiebreak.matched_positions == 3
+    @test rounded_score_tiebreak.score ≈ 1.7025165344558375 atol = 1e-12
+
+    remapped_complex_match_tiebreak = compare(
+        "[WY]..[NMR](([GQ][^I][DH][DMN])|([P][^I][DH][DMN].{0,1}[WY]))",
+        "[YW].{2,4}[MNFRI].[MNF].[MNFRD]",
+        options
+    )
+    @test remapped_complex_match_tiebreak.matched
+    @test remapped_complex_match_tiebreak.query_relationship == "Complex Match"
+    @test remapped_complex_match_tiebreak.search_relationship == "Complex Match"
+    @test remapped_complex_match_tiebreak.matched_positions == 4
 end
 
 @testitem "alphabet specs and options surface" begin
@@ -956,23 +1465,40 @@ end
 end
 
 @testitem "candidate tie-break ordering" begin
-    variant = CompariMotif._MotifVariant(CompariMotif._Position[], "", 1.0)
-
     candidate = (; matched_positions,
         match_ic = 1.0,
-        score = 1.0) -> CompariMotif._Candidate(
-        variant,
-        variant,
-        CompariMotif._REL_EXACT,
-        CompariMotif._LEN_MATCH,
-        CompariMotif._REL_EXACT,
-        CompariMotif._LEN_MATCH,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 1,
+        dual_wildcard_positions = 0,
+        exact_positions = 0,
+        leading_exact_positions = 0,
+        rel_type = CompariMotif._REL_EXACT,
+        rel_length = CompariMotif._LEN_MATCH,
+        query_rel_type = rel_type,
+        query_rel_length = rel_length,
+        search_rel_type = rel_type,
+        search_rel_length = rel_length,
+        query_normalized = "Q",
+        search_normalized = "S",
+        query_information = 1.0,
+        search_information = 1.0) -> CompariMotif._Candidate(
+        CompariMotif._MotifVariant(CompariMotif._Position[], query_normalized, query_information),
+        CompariMotif._MotifVariant(CompariMotif._Position[], search_normalized, search_information),
+        query_rel_type,
+        query_rel_length,
+        search_rel_type,
+        search_rel_length,
         "",
         matched_positions,
         match_ic,
         1.0,
-        1.0,
-        score
+        core_ic,
+        score,
+        overlap_length,
+        dual_wildcard_positions,
+        exact_positions,
+        leading_exact_positions
     )
 
     higher_match_ic = candidate(; matched_positions = 2, match_ic = 2.0, score = 1.0)
@@ -990,6 +1516,443 @@ end
     tied_a = candidate(; matched_positions = 3, match_ic = 1.0, score = 1.0)
     tied_b = candidate(; matched_positions = 3, match_ic = 1.0, score = 1.0)
     @test !CompariMotif._is_better(tied_a, tied_b)
+
+    fewer_dual_wildcards = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_MATCH)
+    more_dual_wildcards = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        dual_wildcard_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_MATCH)
+    @test CompariMotif._is_better(fewer_dual_wildcards, more_dual_wildcards)
+
+    higher_core = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT)
+    lower_core = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP)
+    @test !CompariMotif._is_better(higher_core, lower_core)
+    @test !CompariMotif._is_better(lower_core, higher_core)
+
+    clean_overlap = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 3,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP,
+        query_normalized = "ABCDE")
+    medium_parent = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 4,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT,
+        query_normalized = "ABCDE")
+    cleaner_subsequence = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 5,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE,
+        query_normalized = "ABCDE")
+    longer_overlap = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 6,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP,
+        query_normalized = "ABCDE")
+    padding_heavier_subsequence = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 5,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE,
+        query_normalized = "ABCDE")
+    @test !CompariMotif._is_better(cleaner_subsequence, longer_overlap)
+    @test !CompariMotif._is_better(longer_overlap, cleaner_subsequence)
+    @test !CompariMotif._is_better(clean_overlap, padding_heavier_subsequence)
+    @test !CompariMotif._is_better(padding_heavier_subsequence, clean_overlap)
+    @test !CompariMotif._is_better(clean_overlap, medium_parent)
+    @test !CompariMotif._is_better(medium_parent, clean_overlap)
+
+    exacter_subsequence = candidate(;
+        matched_positions = 4,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 6,
+        exact_positions = 3,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE,
+        query_normalized = "ABCDE")
+    looser_overlap = candidate(;
+        matched_positions = 4,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 5,
+        exact_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP,
+        query_normalized = "ABCDE")
+    @test !CompariMotif._is_better(exacter_subsequence, looser_overlap)
+    @test !CompariMotif._is_better(looser_overlap, exacter_subsequence)
+
+    parent_with_longer_exact_prefix = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 4,
+        exact_positions = 1,
+        leading_exact_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT)
+    overlap_without_exact_prefix = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 3,
+        exact_positions = 1,
+        leading_exact_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP)
+    @test CompariMotif._is_better(parent_with_longer_exact_prefix, overlap_without_exact_prefix)
+    @test !CompariMotif._is_better(
+        overlap_without_exact_prefix,
+        parent_with_longer_exact_prefix
+    )
+
+    parent_without_prefix_advantage = candidate(;
+        matched_positions = 2,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 7,
+        exact_positions = 2,
+        leading_exact_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT)
+    overlap_with_same_prefix = candidate(;
+        matched_positions = 2,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.1,
+        overlap_length = 6,
+        exact_positions = 2,
+        leading_exact_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP)
+    @test !CompariMotif._is_better(overlap_with_same_prefix, parent_without_prefix_advantage)
+    @test !CompariMotif._is_better(
+        parent_without_prefix_advantage,
+        overlap_with_same_prefix
+    )
+
+    single_position_subsequence = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 5,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE)
+    single_position_overlap = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.03,
+        overlap_length = 4,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP)
+    @test !CompariMotif._is_better(single_position_overlap, single_position_subsequence)
+    @test !CompariMotif._is_better(single_position_subsequence, single_position_overlap)
+
+    same_span_lower_dual_subsequence = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 3,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE)
+    same_span_higher_dual_overlap = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.2,
+        overlap_length = 3,
+        dual_wildcard_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP)
+    @test !CompariMotif._is_better(
+        same_span_lower_dual_subsequence,
+        same_span_higher_dual_overlap
+    )
+    @test !CompariMotif._is_better(
+        same_span_higher_dual_overlap,
+        same_span_lower_dual_subsequence
+    )
+
+    same_variant_higher_core = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.2,
+        overlap_length = 3,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT,
+        search_rel_length = CompariMotif._LEN_MATCH,
+        query_normalized = "Qsame",
+        search_normalized = "Ssame")
+    same_variant_lower_core = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 3,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT,
+        search_rel_length = CompariMotif._LEN_PARENT,
+        query_normalized = "Qsame",
+        search_normalized = "Ssame")
+    @test CompariMotif._is_better(same_variant_higher_core, same_variant_lower_core)
+    @test !CompariMotif._is_better(same_variant_lower_core, same_variant_higher_core)
+
+    generic_complex_earlier = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 0.317,
+        overlap_length = 2,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE)
+    generic_complex_later_higher_core = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 0.358,
+        overlap_length = 2,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_SUBSEQUENCE)
+    @test !CompariMotif._is_better(generic_complex_later_higher_core, generic_complex_earlier)
+    @test !CompariMotif._is_better(generic_complex_earlier, generic_complex_later_higher_core)
+
+    shorter_span_different_signature = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 3,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT,
+        search_rel_length = CompariMotif._LEN_OVERLAP)
+    longer_span_different_signature = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 4,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT,
+        search_rel_length = CompariMotif._LEN_PARENT)
+    @test CompariMotif._is_better(
+        shorter_span_different_signature,
+        longer_span_different_signature
+    )
+    @test !CompariMotif._is_better(
+        longer_span_different_signature,
+        shorter_span_different_signature
+    )
+
+    cross_variant_same_signature_earlier = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        dual_wildcard_positions = 1,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP,
+        query_normalized = "Q1")
+    cross_variant_same_signature_later = candidate(;
+        matched_positions = 1,
+        match_ic = 1.0,
+        score = 1.0,
+        dual_wildcard_positions = 0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_OVERLAP,
+        query_normalized = "Q2")
+    @test !CompariMotif._is_better(
+        cross_variant_same_signature_later,
+        cross_variant_same_signature_earlier
+    )
+    @test !CompariMotif._is_better(
+        cross_variant_same_signature_earlier,
+        cross_variant_same_signature_later
+    )
+
+    shorter_contained_overlap = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 4,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT)
+    longer_contained_overlap = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        core_ic = 1.0,
+        overlap_length = 5,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT)
+    @test !CompariMotif._is_better(shorter_contained_overlap, longer_contained_overlap)
+
+    rounded_higher = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0 + 5e-13,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_MATCH)
+    rounded_lower = candidate(;
+        matched_positions = 3,
+        match_ic = 1.0,
+        score = 1.0,
+        rel_type = CompariMotif._REL_COMPLEX,
+        rel_length = CompariMotif._LEN_PARENT)
+    @test !CompariMotif._is_better(rounded_higher, rounded_lower)
+
+    exact_full_lower_information = candidate(;
+        matched_positions = 2,
+        match_ic = 2.0,
+        score = 2.0,
+        rel_type = CompariMotif._REL_EXACT,
+        rel_length = CompariMotif._LEN_MATCH,
+        query_information = 2.0,
+        search_information = 2.0)
+    exact_parent_higher_information = candidate(;
+        matched_positions = 2,
+        match_ic = 2.0,
+        score = 2.0,
+        rel_type = CompariMotif._REL_EXACT,
+        rel_length = CompariMotif._LEN_PARENT,
+        query_information = 2.77,
+        search_information = 2.0)
+    @test CompariMotif._is_better(
+        exact_full_lower_information,
+        exact_parent_higher_information
+    )
+    @test !CompariMotif._is_better(
+        exact_parent_higher_information,
+        exact_full_lower_information
+    )
+
+    exact_full_equal_information = candidate(;
+        matched_positions = 2,
+        match_ic = 2.0,
+        score = 2.0,
+        rel_type = CompariMotif._REL_EXACT,
+        rel_length = CompariMotif._LEN_MATCH,
+        query_information = 2.0,
+        search_information = 2.0)
+    exact_parent_equal_information = candidate(;
+        matched_positions = 2,
+        match_ic = 2.0,
+        score = 2.0,
+        rel_type = CompariMotif._REL_EXACT,
+        rel_length = CompariMotif._LEN_PARENT,
+        query_information = 2.0,
+        search_information = 2.0)
+    @test !CompariMotif._is_better(
+        exact_full_equal_information,
+        exact_parent_equal_information
+    )
+end
+
+@testitem "normalized-ic cutoff keeps boundary hits" begin
+    options = ComparisonOptions()
+    residue = CompariMotif._Position(CompariMotif._RESIDUE, CompariMotif.ResidueMask(1))
+    query_variant = CompariMotif._MotifVariant(fill(residue, 4), "Q", 3.537243573680482)
+    search_variant = CompariMotif._MotifVariant(fill(residue, 8), "S", 5.7686217868402405)
+    acc = CompariMotif._AlignmentAccumulator(;
+        matched_positions = 2,
+        match_ic = 1.7686217868402407,
+        core_ic_denominator = 2.0
+    )
+    candidate = CompariMotif._build_alignment_candidate(
+        query_variant,
+        search_variant,
+        2,
+        acc,
+        options
+    )
+
+    @test candidate !== nothing
+    @test candidate.match_ic ≈ 1.7686217868402407 atol = 1e-12
+    @test candidate.normalized_ic ≈ 0.5 atol = 1e-12
+
+    denom = min(query_variant.information, search_variant.information)
+    near_cutoff_acc = CompariMotif._AlignmentAccumulator(;
+        matched_positions = 2,
+        match_ic = denom * (options.normalized_ic_cutoff - 5e-13),
+        core_ic_denominator = 2.0
+    )
+    near_cutoff = CompariMotif._build_alignment_candidate(
+        query_variant,
+        search_variant,
+        2,
+        near_cutoff_acc,
+        options
+    )
+    @test near_cutoff !== nothing
+    @test near_cutoff.normalized_ic ≈ (options.normalized_ic_cutoff - 5e-13) atol = 1e-15
+
+    below_cutoff_acc = CompariMotif._AlignmentAccumulator(;
+        matched_positions = 2,
+        match_ic = denom * (options.normalized_ic_cutoff - 2e-12),
+        core_ic_denominator = 2.0
+    )
+    below_cutoff = CompariMotif._build_alignment_candidate(
+        query_variant,
+        search_variant,
+        2,
+        below_cutoff_acc,
+        options
+    )
+    @test isnothing(below_cutoff)
 end
 
 @testitem "matrix APIs" begin

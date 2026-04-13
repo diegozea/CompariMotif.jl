@@ -14,6 +14,9 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `wildcard_alias_divergence_probe_motifs.tsv`: motif set documenting the oracle's top-level grouped wildcard quirk using the stable `.` spelling; package tests separately lock down the intentional `x`/`X` alias equivalence because grouped `x`/`X` probes are unstable under the local Python-3 oracle.
 - `exact_prefilter_probe_motifs.tsv`: motif set targeting exact-match, exact-subsequence, and exact-overlap pre-pass parity checks.
 - `score_tiebreak_probe_motifs.tsv`: motif set targeting branch/shift competitions that should be resolved by `Score` after `MatchIC` and `MatchPos`.
+- `variant_order_probe_motifs.tsv`: clean-room motif set targeting oracle-like branch ordering for top-level alternations with tied alignment scores.
+- `relationship_tiebreak_probe_motifs.tsv`: clean-room motif set targeting oracle tie-breaking on relationship specificity and coverage once `MatchIC`, `MatchPos`, and `Score` are tied.
+- `relationship_overlap_tiebreak_probe_motifs.tsv`: clean-room motif set targeting complex coverage ties where the oracle prefers fewer dual-wildcard positions, contained spans over plain overlaps even under a modest `CoreIC` penalty, and equal-span full matches over contained alternatives.
 - `nonuniform_probe_motifs.tsv`: motif set targeting non-uniform background-frequency scoring, including partial ambiguous overlaps that the oracle labels as `Ugly Match`.
 - `nonuniform_probe.aafreq.tsv`: strictly positive protein frequency table used for the non-uniform oracle probe.
 - `dna_probe_motifs.tsv`: DNA motif set covering the README/docs example plus wildcard, negation, overlap, and anchor corner cases.
@@ -31,6 +34,9 @@ This directory stores committed regression fixtures for oracle-based comparisons
 - `oracle_wildcard_alias_divergence_normalized.tsv`: normalized oracle output used to lock down the intentional wildcard-alias divergence documentation.
 - `oracle_exact_prefilter_probe_normalized.tsv`: normalized oracle output for exact-match pre-pass parity tests.
 - `oracle_score_tiebreak_probe_normalized.tsv`: normalized oracle output for score-based tie-break tests.
+- `oracle_variant_order_probe_normalized.tsv`: normalized oracle output for canonical alternation branch-order parity tests.
+- `oracle_relationship_tiebreak_probe_normalized.tsv`: normalized oracle output for relationship-type and coverage tie-break tests.
+- `oracle_relationship_overlap_tiebreak_probe_normalized.tsv`: normalized oracle output for complex-overlap tie-break tests.
 - `oracle_nonuniform_probe_normalized.tsv`: normalized oracle output for non-uniform frequency scoring tests.
 - `oracle_dna_probe_normalized.tsv`: normalized oracle output for uniform DNA scoring tests.
 - `oracle_dna_nonuniform_probe_normalized.tsv`: normalized oracle output for weighted DNA scoring tests.
@@ -69,6 +75,9 @@ oracle_alternation_probe_normalized.tsv
 oracle_wildcard_alias_divergence_normalized.tsv
 oracle_exact_prefilter_probe_normalized.tsv
 oracle_score_tiebreak_probe_normalized.tsv
+oracle_variant_order_probe_normalized.tsv
+oracle_relationship_tiebreak_probe_normalized.tsv
+oracle_relationship_overlap_tiebreak_probe_normalized.tsv
 oracle_nonuniform_probe_normalized.tsv
 oracle_dna_probe_normalized.tsv
 oracle_dna_nonuniform_probe_normalized.tsv
@@ -91,6 +100,9 @@ julia --project=. data/fixtures/generate_oracle_fixture.jl alternation
 julia --project=. data/fixtures/generate_oracle_fixture.jl wildcard_alias_divergence
 julia --project=. data/fixtures/generate_oracle_fixture.jl exact_prefilter
 julia --project=. data/fixtures/generate_oracle_fixture.jl score_tiebreak
+julia --project=. data/fixtures/generate_oracle_fixture.jl variant_order
+julia --project=. data/fixtures/generate_oracle_fixture.jl relationship_tiebreak
+julia --project=. data/fixtures/generate_oracle_fixture.jl relationship_overlap_tiebreak
 julia --project=. data/fixtures/generate_oracle_fixture.jl nonuniform
 julia --project=. data/fixtures/generate_oracle_fixture.jl dna
 julia --project=. data/fixtures/generate_oracle_fixture.jl dna_nonuniform

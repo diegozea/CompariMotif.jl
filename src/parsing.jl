@@ -474,6 +474,9 @@ function _parse_motif(motif::AbstractString, options::ComparisonOptions)
         branch_tokens = _parse_linear_tokens(branch, spec)
         push!(alternatives, branch_tokens)
     end
+    if length(alternatives) > 1
+        _canonicalize_alternatives!(alternatives, spec)
+    end
     normalized_branches = [_normalized_from_tokens(branch_tokens)
                            for branch_tokens in alternatives]
     normalized = if length(normalized_branches) == 1
@@ -521,44 +524,327 @@ function _expand_variants(
         throw(_variant_limit_error(parsed.original, nvariants, options.max_variants))
     end
 
-    # Depth-first expansion over repeat ranges.
     variants = _MotifVariant[]
-    positions = _Position[]
-    symbols = String[]
-
-    function rec(tokens::Vector{_Token}, ti::Int)
-        if ti > length(tokens)
-            isempty(positions) && return
-            # Compute total motif information from concrete expanded positions.
-            info = 0.0
-            for pos in positions
-                info += _position_ic(pos, spec, residue_frequencies)
-            end
-            push!(variants, _MotifVariant(copy(positions), join(symbols), info))
-            return
-        end
-        token = tokens[ti]
-        token_symbol = _canonical_token(token.position, spec)
-        for repeat in token.min_repeat:token.max_repeat
-            # Append repeated token positions for this branch, recurse, then backtrack.
-            append_count = 0
-            for _ in 1:repeat
-                push!(positions, token.position)
-                push!(symbols, token_symbol)
-                append_count += 1
-            end
-            rec(tokens, ti + 1)
-            for _ in 1:append_count
-                pop!(positions)
-                pop!(symbols)
-            end
-        end
-    end
 
     for tokens in parsed.alternatives
-        empty!(positions)
-        empty!(symbols)
-        rec(tokens, 1)
+        append!(variants, _expand_branch_variants(tokens, spec, residue_frequencies))
     end
     return variants
+end
+
+function _emit_branch_variant!(
+        variants::Vector{_MotifVariant},
+        tokens::Vector{_Token},
+        repeat_counts::Vector{Int},
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
+    # Build one concrete variant from the currently chosen repeat count per token.
+    positions = _Position[]
+    symbols = String[]
+    for (token, repeat) in zip(tokens, repeat_counts)
+        # Reuse the token's canonical symbol so variant text stays deterministic.
+        token_symbol = _canonical_token(token.position, spec)
+        for _ in 1:repeat
+            push!(positions, token.position)
+            push!(symbols, token_symbol)
+        end
+    end
+    # If all repeats are zero, this branch contributes no concrete variant.
+    isempty(positions) && return nothing
+
+    # Variant information is the sum of per-position information content.
+    info = 0.0
+    for pos in positions
+        info += _position_ic(pos, spec, residue_frequencies)
+    end
+    push!(variants, _MotifVariant(positions, join(symbols), info))
+    return nothing
+end
+
+function _enumerate_branch_repeat_counts!(
+        variants::Vector{_MotifVariant},
+        tokens::Vector{_Token},
+        repeat_counts::Vector{Int},
+        ti::Int,
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
+    # Base case: every token has a chosen repeat count, so emit one variant.
+    ti > length(tokens) &&
+        return _emit_branch_variant!(
+            variants, tokens, repeat_counts, spec, residue_frequencies)
+    token = tokens[ti]
+    # Enumerate this token's allowed repeat counts, then recurse to later tokens.
+    # This preserves oracle encounter order: earlier tokens vary more slowly,
+    # later tokens vary faster.
+    for repeat in token.min_repeat:token.max_repeat
+        repeat_counts[ti] = repeat
+        _enumerate_branch_repeat_counts!(
+            variants,
+            tokens,
+            repeat_counts,
+            ti + 1,
+            spec,
+            residue_frequencies
+        )
+    end
+    return nothing
+end
+
+function _expand_branch_variants(
+        tokens::Vector{_Token},
+        spec::_AlphabetSpec,
+        residue_frequencies::AbstractVector{<:Real}
+)
+    # Collect concrete variants for one alternation branch.
+    variants = _MotifVariant[]
+    # Mutable traversal state: selected repeat count for each token index.
+    repeat_counts = zeros(Int, length(tokens))
+    _enumerate_branch_repeat_counts!(
+        variants,
+        tokens,
+        repeat_counts,
+        1,
+        spec,
+        residue_frequencies
+    )
+    return variants
+end
+
+"""
+    _canonicalize_alternatives!(alternatives::Vector{Vector{_Token}}, spec::_AlphabetSpec)
+
+Sort grouped branch alternatives in place using the deterministic
+oracle-backed branch-order rules.
+"""
+function _canonicalize_alternatives!(
+        alternatives::Vector{Vector{_Token}},
+        spec::_AlphabetSpec
+)
+    length(alternatives) <= 1 && return alternatives
+
+    # Decorate each branch with temporary metadata
+    # `(branch_index, tokens, order_tokens)`, sort using `order_tokens`,
+    # then undecorate by writing only `tokens` back into `alternatives`.
+    # This avoids recomputing order keys on every pairwise comparison.
+    branch_entries = NamedTuple[]
+    for (branch_index, tokens) in enumerate(alternatives)
+        push!(branch_entries,
+            (;
+                branch_index,
+                tokens,
+                order_tokens = _branch_order_tokens(tokens)
+            ))
+    end
+
+    sort!(branch_entries; lt = (left, right) -> _branch_tokens_isless(left, right, spec))
+    empty!(alternatives)
+    append!(alternatives, getfield.(branch_entries, :tokens))
+    return alternatives
+end
+
+"""
+    _branch_order_tokens(tokens::Vector{_Token})
+
+Expand branch tokens into a comparison stream that separates mandatory copies
+from optional repeat tails.
+"""
+function _branch_order_tokens(tokens::Vector{_Token})
+    order_tokens = NamedTuple{(:position, :min_repeat, :max_repeat)}[]
+    for token in tokens
+        # `(min_repeat, max_repeat)` encode repeat bounds for this emitted unit.
+        # Emit one exact `(1,1)` entry per mandatory copy.
+        # Example: `R{2}` contributes two entries for `R`, both `(min_repeat=1, max_repeat=1)`.
+        for _ in 1:token.min_repeat
+            push!(order_tokens, (position = token.position, min_repeat = 1, max_repeat = 1))
+        end
+        # Any extra repeat capacity is stored as one optional tail `(0, extra)`.
+        # Here `min_repeat=0` means the optional tail may contribute zero extra copies.
+        # Example: `R{2,4}` contributes two exact entries plus one optional `(0,2)` tail.
+        # Example: `R{0,3}` contributes only one optional `(0,3)` tail.
+        extra_repeat = token.max_repeat - token.min_repeat
+        if extra_repeat > 0
+            push!(order_tokens,
+                (position = token.position, min_repeat = 0, max_repeat = extra_repeat))
+        end
+    end
+    return order_tokens
+end
+
+"""
+    _position_order_category(pos::_Position, spec::_AlphabetSpec)
+
+Return the coarse sort category used for branch ordering:
+fixed residue < wildcard < residue class < N-terminus < C-terminus.
+Returned rank values are:
+- 0 fixed residue
+- 1 wildcard
+- 2 residue class
+- 3 N-terminus
+- 4 C-terminus
+"""
+@inline function _position_order_category(pos::_Position, spec::_AlphabetSpec)
+    pos.kind === _NTERMINUS && return 3
+    pos.kind === _CTERMINUS && return 4
+    _is_fixed(pos) && return 0
+    _is_wildcard(pos, spec.mask) && return 1
+    return 2
+end
+
+"""
+    _position_order_text(pos::_Position, spec::_AlphabetSpec)
+
+Return the textual tie-break key for residue positions; anchors use `""`.
+"""
+@inline function _position_order_text(pos::_Position, spec::_AlphabetSpec)
+    pos.kind === _RESIDUE || return ""
+    return String(_mask_to_chars(pos.mask, spec))
+end
+
+"""
+    _order_token_repeat_key(token)::Tuple{Int, Int}
+
+Return the sort key `(repeat_kind_rank, max_repeat)` for one order token.
+
+`repeat_kind_rank` values:
+- `0`: exact repeat (`min_repeat == max_repeat`), e.g. `{3}`.
+- `1`: ranged repeat (`min_repeat != max_repeat`), e.g. `{2,4}` or optional tail `(0,2)`.
+"""
+@inline function _order_token_repeat_key(token)::Tuple{Int, Int}
+    is_exact = token.min_repeat == token.max_repeat
+    return (is_exact ? 0 : 1, token.max_repeat)
+end
+
+"""
+    _same_position(left::_Position, right::_Position)
+
+Return `true` when two parsed positions encode the same anchor/residue mask.
+"""
+@inline function _same_position(left::_Position, right::_Position)
+    return left.kind === right.kind && left.mask == right.mask
+end
+
+"""
+    _is_exact_order_token(token)::Bool
+
+Return `true` for the normalized exact-repeat unit `(1, 1)`.
+"""
+@inline function _is_exact_order_token(token)::Bool
+    return token.min_repeat == 1 && token.max_repeat == 1
+end
+
+"""
+    _is_optional_repeat_order_token(token)::Bool
+
+Return `true` for normalized optional repeat tails `(0, n)` where `n > 0`.
+"""
+@inline function _is_optional_repeat_order_token(token)::Bool
+    return token.min_repeat == 0 && token.max_repeat > 0
+end
+
+"""
+    _repeat_overlap_ordering(left_order_tokens, right_order_tokens, idx::Int)
+
+Apply the special tie-break for adjacent repeated positions that differ only by
+`exact` versus `optional tail` representation at `idx`.
+"""
+function _repeat_overlap_ordering(
+        left_order_tokens,
+        right_order_tokens,
+        idx::Int
+)
+    idx == 1 && return nothing
+
+    left_token = left_order_tokens[idx]
+    right_token = right_order_tokens[idx]
+    _same_position(left_token.position, right_token.position) || return nothing
+
+    left_exact = _is_exact_order_token(left_token)
+    right_exact = _is_exact_order_token(right_token)
+    left_optional = _is_optional_repeat_order_token(left_token)
+    right_optional = _is_optional_repeat_order_token(right_token)
+    if !(left_optional && right_exact) && !(left_exact && right_optional)
+        return nothing
+    end
+
+    prev_left = left_order_tokens[idx - 1]
+    prev_right = right_order_tokens[idx - 1]
+    if !_same_position(prev_left.position, left_token.position) ||
+       !_same_position(prev_right.position, right_token.position)
+        return nothing
+    end
+
+    # Oracle-compatible preference: when one side has an exact extra copy and the
+    # other side encodes that same copy as optional tail, keep the shorter side first.
+    return left_optional && right_exact
+end
+
+"""
+    _order_token_isless(left, right, spec::_AlphabetSpec)
+
+Return `true` when `left` should sort before `right` by position category,
+position text, then repeat key.
+"""
+function _order_token_isless(left, right, spec::_AlphabetSpec)
+    # Primary key: broad position type.
+    left_category = _position_order_category(left.position, spec)
+    right_category = _position_order_category(right.position, spec)
+    if left_category != right_category
+        return left_category < right_category
+    end
+
+    # Secondary key: canonical residue text for deterministic class ordering.
+    left_text = _position_order_text(left.position, spec)
+    right_text = _position_order_text(right.position, spec)
+    if left_text != right_text
+        return left_text < right_text
+    end
+
+    # Tertiary key: exact repeats before ranged repeats.
+    left_repeat = _order_token_repeat_key(left)
+    right_repeat = _order_token_repeat_key(right)
+    if left_repeat != right_repeat
+        return left_repeat < right_repeat
+    end
+    return false
+end
+
+"""
+    _branch_token_sequence_isless(left_order_tokens, right_order_tokens, spec::_AlphabetSpec)
+
+Lexicographically compare two expanded branch token streams.
+"""
+function _branch_token_sequence_isless(left_order_tokens, right_order_tokens, spec::_AlphabetSpec)
+    nshared = min(length(left_order_tokens), length(right_order_tokens))
+    for idx in 1:nshared
+        left_token = left_order_tokens[idx]
+        right_token = right_order_tokens[idx]
+        # First apply the repeat-overlap exception before normal token ordering.
+        repeat_overlap_order = _repeat_overlap_ordering(left_order_tokens, right_order_tokens, idx)
+        repeat_overlap_order === nothing || return repeat_overlap_order
+        if _order_token_isless(left_token, right_token, spec)
+            return true
+        end
+        if _order_token_isless(right_token, left_token, spec)
+            return false
+        end
+    end
+    return length(left_order_tokens) < length(right_order_tokens)
+end
+
+"""
+    _branch_tokens_isless(left, right, spec::_AlphabetSpec)
+
+Compare two decorated branch entries, falling back to original branch index to
+keep sorting stable when order keys tie.
+"""
+function _branch_tokens_isless(left, right, spec::_AlphabetSpec)
+    if _branch_token_sequence_isless(left.order_tokens, right.order_tokens, spec)
+        return true
+    end
+    if _branch_token_sequence_isless(right.order_tokens, left.order_tokens, spec)
+        return false
+    end
+    return left.branch_index < right.branch_index
 end

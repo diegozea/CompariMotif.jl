@@ -1,4 +1,7 @@
 # Motif set used to validate grouping/alternation behavior against oracle.
+# 11. Q(.|[QL])
+# 12. [QL].
+# 13. .[QL]
 (RKLI)
 (RKLI)|(AQLI)
 RKLI|AQLI
@@ -9,3 +12,6 @@ R(KL)I
 RKLI
 AQLI
 AKLI
+Q(.|[QL])
+[QL].
+.[QL]

@@ -1,0 +1,22 @@
+# Motif set used to validate oracle-like alternation branch ordering.
+# Fixed order:
+# 1. ([ST]QQ)|(QQ[ST])
+# 2. A.QQ
+# 3. [NQ]Q.
+# 4. (QQ[ST])|(QQ{1,2})
+# 5. QQ
+# 6. (.AA)|(.{0,1}AA)
+# 7. AA
+# 8. (A{1,3}|A{2,3})
+# 9. [QA]
+# 10. (A{2,3}|A{1,3})
+([ST]QQ)|(QQ[ST])
+A.QQ
+[NQ]Q.
+(QQ[ST])|(QQ{1,2})
+QQ
+(.AA)|(.{0,1}AA)
+AA
+(A{1,3}|A{2,3})
+[QA]
+(A{2,3}|A{1,3})

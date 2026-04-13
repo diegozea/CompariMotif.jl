@@ -588,6 +588,13 @@ Fields:
 - `mismatches`: mismatches consumed so far.
 - `match_ic`: accumulated matched information content.
 - `core_ic_denominator`: accumulated CoreIC denominator.
+- `dual_wildcard_positions`: aligned positions where both sides are full
+  wildcards and therefore add no specificity.
+- `exact_positions`: informative positions classified as exact matches.
+- `leading_exact_positions`: length of the informative exact prefix before the
+  overlap first broadens or introduces wildcard-only padding.
+- `leading_exact_prefix_open`: `true` while the scan remains inside that informative 
+   exact prefix; flips to `false` at the first non-exact or non-informative position.
 - `has_variant`, `has_degenerate`, `has_complex`: per-position relationship
   evidence used to derive the final relationship word.
 """
@@ -597,6 +604,10 @@ Base.@kwdef mutable struct _AlignmentAccumulator
     mismatches::Int = 0
     match_ic::Float64 = 0.0
     core_ic_denominator::Float64 = 0.0
+    dual_wildcard_positions::Int = 0
+    exact_positions::Int = 0
+    leading_exact_positions::Int = 0
+    leading_exact_prefix_open::Bool = true
     has_variant::Bool = false
     has_degenerate::Bool = false
     has_complex::Bool = false
@@ -652,6 +663,26 @@ function _record_alignment_position!(
         spec::_AlphabetSpec
 )
     acc.core_ic_denominator += cmp.core_ic_denominator
+    # Count positions where both motifs contribute only wildcards.
+    if qpos.kind == _RESIDUE && spos.kind == _RESIDUE &&
+       _is_wildcard(qpos, spec.mask) && _is_wildcard(spos, spec.mask)
+        acc.dual_wildcard_positions += 1
+    end
+    # Track informative exact matches for tie-breaking.
+    if cmp.relation == _REL_EXACT && cmp.contributes_position
+        acc.exact_positions += 1
+    end
+    # Keep counting the leading informative exact run until it breaks.
+    if acc.leading_exact_prefix_open
+        # Extend the prefix while this position is informative and exact.
+        if cmp.relation == _REL_EXACT && cmp.contributes_position
+            acc.leading_exact_positions += 1
+        else
+            # Close the prefix once we hit a non-exact or non-informative position.
+            acc.leading_exact_prefix_open = false
+        end
+    end
+    # Mismatches consume budget; non-mismatches add scoring evidence.
     if cmp.mismatch
         acc.mismatches += 1
         acc.mismatches > options.mismatches && return false
@@ -687,7 +718,16 @@ function _build_alignment_candidate(
 
     denom = min(query_variant.information, search_variant.information)
     normalized_ic = denom > 0 ? (acc.match_ic / denom) : 0.0
-    normalized_ic < options.normalized_ic_cutoff && return nothing
+    # allow tiny floating-point noise at the cutoff boundary using isapprox
+    if normalized_ic < options.normalized_ic_cutoff &&
+       !isapprox(
+        normalized_ic,
+        options.normalized_ic_cutoff;
+        atol = 1e-12,
+        rtol = 0.0
+    )
+        return nothing
+    end
 
     core_ic = acc.core_ic_denominator > 0 ? (acc.match_ic / acc.core_ic_denominator) : 0.0
     score = normalized_ic * acc.matched_positions
@@ -711,7 +751,11 @@ function _build_alignment_candidate(
         acc.match_ic,
         normalized_ic,
         core_ic,
-        score
+        score,
+        overlap_length,
+        acc.dual_wildcard_positions,
+        acc.exact_positions,
+        acc.leading_exact_positions
     )
 end
 
@@ -799,22 +843,164 @@ end
 """
     _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})::Bool
 
-Apply deterministic candidate ordering: 1) higher `match_ic`, 2) more matched positions,
-3) higher `score`. Remaining ties fall back to candidate encounter order from
-the shift scan inferred by black-box oracle tie cases.
+Apply deterministic candidate ordering: 1) higher `match_ic`, 2) more matched
+positions, 3) higher `score`, then for complex ties:
+4a) contained-vs-overlap choices preserve the contained hit only when it adds
+an observed oracle-backed advantage over the plain overlap: a longer leading
+informative exact prefix from the start of the overlap,
+4b) all other ties between the same concrete variant pair prefer fewer
+dual-wildcard overlap positions. When those same-variant complex candidates
+have different relationship signatures they then prefer higher `core_ic`, then
+shorter overlap length; otherwise candidate encounter order is preserved so
+same-signature complex shifts still match the oracle's direction-specific
+first-seen behavior. Cross-variant complex ties with the same relationship
+signature also preserve encounter order, letting repeat/branch visitation
+control which oracle row survives after score-equivalent collapse, while
+cross-variant ties that change the relationship signature still use the generic
+dual-wildcard/`core_ic` fallback. Tiny floating differences are treated as ties
+so repeat expansion order does not flip otherwise equivalent candidates.
+Non-complex ties still fall back to candidate encounter order, except for
+exact-vs-exact ties where a lower-information full-length match can outrank an
+equally scoring contained/overlap hit. All these tie-breaking rules are designed to 
+preserve the oracle's observed behavior.
 """
+
+@inline function _candidate_total_information(candidate::_Candidate)
+    return candidate.query_variant.information + candidate.search_variant.information
+end
+
+@inline function _is_exact_full_match(candidate::_Candidate)
+    return candidate.query_relationship_type == _REL_EXACT &&
+           candidate.search_relationship_type == _REL_EXACT &&
+           candidate.query_relationship_length == _LEN_MATCH &&
+           candidate.search_relationship_length == _LEN_MATCH
+end
+
+@inline function _is_contained_complex_length(rel_length)
+    return rel_length == _LEN_PARENT || rel_length == _LEN_SUBSEQUENCE
+end
+
+@inline function _should_preserve_contained_complex_tie(
+        contained::_Candidate,
+        overlap::_Candidate
+)
+    # Only preserve a later contained candidate when it keeps a longer exact
+    # prefix from the start of the informative overlap. Broader exact-position,
+    # span, or dual-wildcard heuristics regress oracle-backed overlap winners.
+    if contained.leading_exact_positions != overlap.leading_exact_positions
+        return contained.leading_exact_positions > overlap.leading_exact_positions
+    end
+    return false
+end
+
+@inline function _prefer_generic_complex_tie(candidate::_Candidate, best::_Candidate)
+    # Check whether both candidates come from the same concrete query/search variant pair.
+    same_variant_pair = candidate.query_variant.normalized ==
+                        best.query_variant.normalized &&
+                        candidate.search_variant.normalized ==
+                        best.search_variant.normalized
+    # Check whether both candidates imply the same query/search relationship signature.
+    same_relationship = candidate.query_relationship_type == best.query_relationship_type &&
+                        candidate.query_relationship_length ==
+                        best.query_relationship_length &&
+                        candidate.search_relationship_type ==
+                        best.search_relationship_type &&
+                        candidate.search_relationship_length ==
+                        best.search_relationship_length
+    # Cross-variant candidates with the same relationship signature keep encounter order.
+    (!same_variant_pair && same_relationship) && return false
+    # Otherwise prefer fewer positions where both motifs contribute wildcards.
+    if candidate.dual_wildcard_positions != best.dual_wildcard_positions
+        return candidate.dual_wildcard_positions < best.dual_wildcard_positions
+    end
+    # If the relationship signature still ties, keep encounter order.
+    same_relationship && return false
+    # Next prefer higher informative content in the overlap core.
+    if !isapprox(candidate.core_ic, best.core_ic; atol = 1e-12, rtol = 0.0)
+        return candidate.core_ic > best.core_ic
+    end
+    # Then prefer a shorter overlap span.
+    if candidate.overlap_length != best.overlap_length
+        return candidate.overlap_length < best.overlap_length
+    end
+    # Final tie: preserve encounter order.
+    return false
+end
+
 function _is_better(candidate::_Candidate, best::Union{Nothing, _Candidate})
+    # First candidate always wins when there is no incumbent best match yet.
     best === nothing && return true
-    if candidate.match_ic != best.match_ic
+
+    # Primary ranking key: higher match information content.
+    if !isapprox(candidate.match_ic, best.match_ic; atol = 1e-12, rtol = 0.0)
         return candidate.match_ic > best.match_ic
     end
+
+    # Secondary key: more matched positions.
     if candidate.matched_positions != best.matched_positions
         return candidate.matched_positions > best.matched_positions
     end
-    if candidate.score != best.score
+
+    # Tertiary key: higher overall score.
+    if !isapprox(candidate.score, best.score; atol = 1e-12, rtol = 0.0)
         return candidate.score > best.score
     end
-    return false
+
+    complex_tie = candidate.query_relationship_type == _REL_COMPLEX &&
+                  best.query_relationship_type == _REL_COMPLEX &&
+                  candidate.search_relationship_type == _REL_COMPLEX &&
+                  best.search_relationship_type == _REL_COMPLEX
+
+    # Non-complex ties mostly preserve encounter order, with one exact-vs-exact exception.
+    if !complex_tie
+        # Detect ties where both sides are exact relationship types.
+        both_exact = candidate.query_relationship_type == _REL_EXACT &&
+                     best.query_relationship_type == _REL_EXACT &&
+                     candidate.search_relationship_type == _REL_EXACT &&
+                     best.search_relationship_type == _REL_EXACT
+        if both_exact
+            # Distinguish full-length exact matches from contained/overlap exact matches.
+            candidate_exact_full = _is_exact_full_match(candidate)
+            best_exact_full = _is_exact_full_match(best)
+            if candidate_exact_full != best_exact_full
+                # Oracle-backed special case: a lower-information full exact match can outrank.
+                candidate_total_information = _candidate_total_information(candidate)
+                best_total_information = _candidate_total_information(best)
+                if !isapprox(
+                    candidate_total_information,
+                    best_total_information;
+                    atol = 1e-12,
+                    rtol = 0.0
+                )
+                    return candidate_exact_full &&
+                           candidate_total_information < best_total_information
+                end
+            end
+        end
+        # Default non-complex tie behavior: keep the existing best.
+        return false
+    end
+
+    # For complex ties, classify query-side length relationships.
+    candidate_contained = _is_contained_complex_length(candidate.query_relationship_length)
+    best_contained = _is_contained_complex_length(best.query_relationship_length)
+    candidate_overlap = candidate.query_relationship_length == _LEN_OVERLAP
+    best_overlap = best.query_relationship_length == _LEN_OVERLAP
+
+    # When contained and overlap forms compete, keep contained only if it wins explicit checks.
+    if candidate_contained != best_contained &&
+       (candidate_overlap || best_overlap)
+        contained = candidate_contained ? candidate : best
+        overlap = candidate_contained ? best : candidate
+        if _should_preserve_contained_complex_tie(contained, overlap)
+            return candidate_contained
+        end
+        # Otherwise preserve encounter order for contained-vs-overlap ties.
+        return false
+    end
+
+    # Remaining complex ties use the generic deterministic fallback.
+    return _prefer_generic_complex_tie(candidate, best)
 end
 
 """

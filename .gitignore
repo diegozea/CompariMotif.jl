@@ -19,3 +19,6 @@ AGENT_NOTES.md
 
 # Logs
 *.log
+
+# Development
+/test_elm/

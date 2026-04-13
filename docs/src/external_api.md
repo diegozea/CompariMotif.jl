@@ -64,6 +64,13 @@ mark positions broadened by ambiguity or wildcard handling. It is worth noting
 that the paper does not define a `CoreIC` score. Accordingly, in this 
 package, `core_ic` follows the behavior of the upstream CompariMotif oracle.
 
+Most fields stay the same when you swap the input order, apart from the
+directional relationship labels described above. In a smaller set of cases, the
+comparison itself is also directional. Then `compare(a, b)` and `compare(b, a)` 
+can return different best hits and different score values. This is
+expected and matches the upstream oracle observations used for regression
+testing.
+
 The same fields become table columns when you call [`to_column_table`](@ref).
 In that tabular form, `query` and `search` keep the original motif strings,
 while `normalized_query` and `normalized_search` expose the canonical forms

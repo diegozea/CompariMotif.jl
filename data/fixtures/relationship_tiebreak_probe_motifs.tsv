@@ -1,0 +1,11 @@
+# Motif set used to validate oracle tie-breaking on relationship specificity
+# and coverage completeness when MatchIC, MatchPos, and Score are tied.
+# Fixed order:
+# 1. .(A)..C$
+# 2. [DE].{0,2}[DE].{0,2}[ADE].{0,1}[CF]$
+# 3. DE.
+# 4. [DE]{0,2}[DE].{0,2}[DE].{2,4}[CF].[CF]
+.(A)..C$
+[DE].{0,2}[DE].{0,2}[ADE].{0,1}[CF]$
+DE.
+[DE]{0,2}[DE].{0,2}[DE].{2,4}[CF].[CF]

@@ -1,0 +1,35 @@
+# Motif set used to validate oracle tie-breaking when identical scores can be
+# achieved across competing complex spans.
+# Fixed order:
+# 1. A.{0,1}A.{2,3}$
+# 2. [AS].{0,2}S$
+# 3. H.H.{0,1}QY
+# 4. H[LM]H(([KR][^H].)|(.[^H][KR]))
+# 5. [ST]{0,1}V.G[^P]{0,2}[KR]{1,2}
+# 6. R...[KR]R.
+# 7. [WY]..[NMR](([GQ][^I][DH][DMN])|([P][^I][DH][DMN].{0,1}[WY]))
+# 8. [YW].{2,4}[MNFRI].[MNF].[MNFRD]
+# 9. Q.RQ.[SR].{1,3}[MNR]
+# 10. [NTSRM]..[TMSRG]Q.R..
+# 11. [^CG]((R[RH])|(RH))[RHQ][RH][^CG]
+# 12. [TN]{0,1}..[ASYW][FL][CGN][LI][LI].{2,3}[RH]{2,3}[^CG]
+# 13. AA.
+# 14. R.x{0,1}L
+# 15. A.KA
+# 16. [KR]{1,4}[KR].[KR]W.
+A.{0,1}A.{2,3}$
+[AS].{0,2}S$
+H.H.{0,1}QY
+H[LM]H(([KR][^H].)|(.[^H][KR]))
+[ST]{0,1}V.G[^P]{0,2}[KR]{1,2}
+R...[KR]R.
+[WY]..[NMR](([GQ][^I][DH][DMN])|([P][^I][DH][DMN].{0,1}[WY]))
+[YW].{2,4}[MNFRI].[MNF].[MNFRD]
+Q.RQ.[SR].{1,3}[MNR]
+[NTSRM]..[TMSRG]Q.R..
+[^CG]((R[RH])|(RH))[RHQ][RH][^CG]
+[TN]{0,1}..[ASYW][FL][CGN][LI][LI].{2,3}[RH]{2,3}[^CG]
+AA.
+R.x{0,1}L
+A.KA
+[KR]{1,4}[KR].[KR]W.

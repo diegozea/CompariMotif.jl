@@ -116,7 +116,7 @@ end
 # - original user input,
 # - normalized canonical text,
 # - token sequence with possible repeat ranges,
-# - branch alternatives for `(motif1)|(motif2)`-style motifs.
+# - fully expanded whole-motif branches created by grouped alternation parsing.
 """
     _ParsedMotif
 
@@ -126,7 +126,8 @@ Fields:
 - `original`: motif text exactly as supplied by the caller.
 - `normalized`: canonical motif text used for deterministic comparisons.
 - `tokens`: token sequence for the first parsed branch.
-- `alternatives`: token sequence for every expanded top-level alternation branch.
+- `alternatives`: token sequence for every expanded whole-motif branch produced
+  by grouped alternation parsing, including embedded grouped alternatives.
 """
 struct _ParsedMotif
     original::String
@@ -304,4 +305,8 @@ struct _Candidate
     normalized_ic::Float64
     core_ic::Float64
     score::Float64
+    overlap_length::Int
+    dual_wildcard_positions::Int
+    exact_positions::Int
+    leading_exact_positions::Int
 end
