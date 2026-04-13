@@ -1,5 +1,19 @@
 ## CompariMotif.jl Release Notes
 
+### Changes from 0.2.0 to 0.3.0
+
+- Improved oracle parity in branch-selection, repeat-visitation, and
+  relationship-overlap tie-break edge cases. Quantified grouped branches now
+  follow the oracle-backed branch and repeat visitation order captured by the
+  latest regression fixtures.
+- Added oracle-backed regression coverage for variant-order,
+  relationship-specificity, and relationship-overlap tie cases, including new
+  normalized fixtures and targeted probe motif sets.
+- Updated the documentation to clarify that some late branch-selection ties are
+  direction-dependent in the upstream oracle and to record the latest
+  all-against-all ELM catalog validation, where the remaining cluster-level
+  discrepancies are recovered by pair-only oracle replay.
+
 ### Changes from 0.1.0 to 0.2.0
 
 - *[Breaking change]* Alphabet selectors now use marker objects instead of
