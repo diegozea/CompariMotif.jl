@@ -2,6 +2,12 @@
 
 ### Changes from 0.2.0 to 0.3.0
 
+This release does not introduce breaking public API changes: the exported
+surface and documented entry points remain compatible with `0.2.0`. It does,
+however, include behavioral changes to improve oracle parity, so some existing
+motif comparisons may produce different relationships, matched patterns, or
+score-related outputs for the same inputs.
+
 - Improved oracle parity in branch-selection, repeat-visitation, and
   relationship-overlap tie-break edge cases. Quantified grouped branches now
   follow the oracle-backed branch and repeat visitation order captured by the
