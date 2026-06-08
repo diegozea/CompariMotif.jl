@@ -35,6 +35,6 @@ Documenter.makedocs(;
 )
 
 Documenter.deploydocs(;
-    repo = "github.com/diegozea/CompariMotif.jl",
+    repo = "github.com/diegozea/CompariMotif.jl.git",
     devbranch = "main"
 )
